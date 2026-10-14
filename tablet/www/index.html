@@ -826,7 +826,7 @@ label.f > span, .label { font-family: var(--f-mono); font-weight: 700; font-size
           ? `<button class="btn small" data-act="tag-view" data-id="${esc(t.id)}">View tag</button>${t.saleId ? `<button class="btn small ghost" data-act="sale-open" data-id="${esc(t.saleId)}">Receipt T-${esc(t.receiptNo)}</button>` : ""}`
           : t.status === "register"
           ? `<button class="btn small primary" data-act="nav" data-v="register">Go to the register</button>`
-          : `<button class="btn small" data-act="tag-edit" data-id="${esc(t.id)}">Edit tag</button><button class="btn small primary" data-act="tag-close" data-id="${esc(t.id)}">Close tag</button>`}</div>
+          : `<button class="btn small" data-act="tag-edit" data-id="${esc(t.id)}">Edit tag</button><button class="btn small primary" data-act="tag-close" data-id="${esc(t.id)}">Take payment &amp; close tag</button>`}</div>
       </div></div>`;
   }
 
