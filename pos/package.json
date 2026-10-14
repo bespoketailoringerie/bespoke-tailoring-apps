@@ -16,15 +16,44 @@
   },
   "devDependencies": {
     "electron": "^33.2.0",
-    "electron-builder": "^25.1.8"
+    "electron-builder": "^25.1.8",
+    "@fontsource/gloock": "^5.1.0",
+    "@fontsource/lora": "^5.1.0",
+    "@fontsource/courier-prime": "^5.1.0"
   },
   "build": {
     "appId": "com.bespoketailoring.register",
     "productName": "Bespoke Register",
-    "files": ["main.js", "preload.js", "app/**/*", "package.json"],
-    "directories": { "output": "dist", "buildResources": "build" },
-    "win": { "target": ["nsis"], "icon": "build/icon.png", "artifactName": "Bespoke-Register-Setup-${version}.${ext}" },
-    "nsis": { "oneClick": true, "perMachine": false, "createDesktopShortcut": true, "shortcutName": "Bespoke Register" },
-    "publish": [{ "provider": "github", "owner": "bespoketailoringerie", "repo": "bespoke-tailoring-apps", "releaseType": "release" }]
+    "files": [
+      "main.js",
+      "preload.js",
+      "app/**/*",
+      "package.json"
+    ],
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "icon": "build/icon.png",
+      "artifactName": "Bespoke-Register-Setup-${version}.${ext}"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "createDesktopShortcut": true,
+      "shortcutName": "Bespoke Register"
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "bespoketailoringerie",
+        "repo": "bespoke-tailoring-apps",
+        "releaseType": "release"
+      }
+    ]
   }
 }

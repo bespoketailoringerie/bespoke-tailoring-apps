@@ -93,7 +93,12 @@ ipcMain.handle("csv:save", async (_e, { name, csv }) => {
 // Print a receipt: a hidden window loads the receipt page and opens the printer dialog.
 ipcMain.handle("receipt:print", async (_e, { html, paper }) => {
   const pw = new BrowserWindow({ show: false, webPreferences: { sandbox: true } });
-  await pw.loadURL("data:text/html;charset=utf-8," + encodeURIComponent(html));
+  // Load the receipt from a file next to the app's bundled fonts, so it prints in the shop's typefaces.
+  const fontsCss = require("node:url").pathToFileURL(path.join(__dirname, "app", "fonts", "fonts.css")).href;
+  const page = path.join(app.getPath("temp"), "bespoke-print.html");
+  fs.writeFileSync(page, String(html).replace(/<head>/i, `<head><link rel="stylesheet" href="${fontsCss}">`));
+  await pw.loadFile(page);
+  await pw.webContents.executeJavaScript("document.fonts.ready.then(() => true)").catch(() => {});
   const pageSize = paper === "letter" ? "Letter" : { width: 80000, height: 297000 };
   return new Promise((resolve) => {
     pw.webContents.print({ silent: false, printBackground: true, pageSize, margins: { marginType: "none" } }, (ok, reason) => {

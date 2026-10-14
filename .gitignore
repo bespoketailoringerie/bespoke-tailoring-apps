@@ -4,3 +4,4 @@ tablet/android/
 tablet/ios/
 *.jks
 *.keystore
+*.woff2

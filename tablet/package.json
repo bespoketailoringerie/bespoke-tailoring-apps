@@ -9,6 +9,9 @@
   },
   "devDependencies": {
     "@capacitor/assets": "^3.0.5",
-    "@capacitor/cli": "^6.2.0"
+    "@capacitor/cli": "^6.2.0",
+    "@fontsource/gloock": "^5.1.0",
+    "@fontsource/lora": "^5.1.0",
+    "@fontsource/courier-prime": "^5.1.0"
   }
 }
