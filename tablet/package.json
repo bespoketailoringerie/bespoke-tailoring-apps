@@ -1,0 +1,14 @@
+{
+  "name": "bespoke-register-tablet",
+  "version": "1.0.0",
+  "description": "Tablet register for Bespoke Tailoring (Android)",
+  "private": true,
+  "dependencies": {
+    "@capacitor/android": "^6.2.0",
+    "@capacitor/core": "^6.2.0"
+  },
+  "devDependencies": {
+    "@capacitor/assets": "^3.0.5",
+    "@capacitor/cli": "^6.2.0"
+  }
+}

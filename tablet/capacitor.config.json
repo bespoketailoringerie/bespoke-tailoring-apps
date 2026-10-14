@@ -1,0 +1,6 @@
+{
+  "appId": "com.bespoketailoring.tablet",
+  "appName": "Bespoke Register",
+  "webDir": "www",
+  "android": { "backgroundColor": "#f7eeda" }
+}

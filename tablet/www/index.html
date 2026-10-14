@@ -1,0 +1,785 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Bespoke Register Tablet</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gloock&family=Lora:wght@400;500;600&family=Courier+Prime:wght@400;700&display=swap">
+<style>/* Layout: the Bespoke Register's red header band (logo left, cream tabs) over a cream counter,
+   sized for a 10.5" Android tablet: service tags on the left, the current sale on the right.
+   Same palette, square red frames with a gold inner line, Courier Prime capitals, Gloock headings.
+   Single light look on purpose, matching the desktop register and the website. */
+:root {
+  --bg: #f7eeda;
+  --card: #fbf5e6;
+  --ink: #3a1d1d;
+  --brown: #7a4a20;
+  --rule: #cfb98a;
+  --red: #b92f37;
+  --red-dark: #8a1f26;
+  --gold: #e3a53f;
+  --gold-dark: #d8962c;
+  --gold-soft: #fff3d6;
+  --good: #2f7d4f;
+  --good-soft: #e1efe3;
+  --slip: #fffdf7;
+  --slip-ink: #2a1a12;
+  --shade: rgba(58, 29, 29, 0.18);
+  --scrim: rgba(58, 29, 29, 0.6);
+  --f-display: "Gloock", "Georgia", "Times New Roman", serif;
+  --f-body: "Lora", "Georgia", "Times New Roman", serif;
+  --f-mono: "Courier Prime", "Courier New", ui-monospace, monospace;
+  color-scheme: light;
+}
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { height: 100%; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 17px/1.5 var(--f-body); overflow: hidden;
+  -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+button, input, select, textarea { font: inherit; color: inherit; }
+button { -webkit-user-select: none; user-select: none; }
+h1, h2, h3 { font-family: var(--f-display); font-weight: 400; margin: 0; text-wrap: balance; color: var(--red); }
+h2 { font-size: 30px; line-height: 1.15; }
+.money, .num { font-family: var(--f-mono); font-variant-numeric: tabular-nums; }
+:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+
+#app { display: grid; grid-template-rows: auto auto 1fr; height: 100%; }
+
+/* Header band */
+.bar { display: flex; align-items: center; gap: 24px; background: var(--red); color: var(--bg);
+  padding-block: 10px; padding-left: max(18px, env(safe-area-inset-left, 0px)); padding-right: max(18px, env(safe-area-inset-right, 0px)); }
+.brand { display: flex; align-items: center; gap: 14px; }
+.brand img { height: 62px; width: auto; display: block; }
+.brand span { font-family: var(--f-mono); font-weight: 700; font-size: 12px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--gold); border-left: 1px solid rgba(247, 238, 218, 0.4); padding-left: 14px; }
+.tabs { display: flex; }
+.tabs button { background: transparent; color: var(--bg); border: 2px solid var(--bg); padding: 12px 26px; min-height: 52px; cursor: pointer; font-family: var(--f-mono); font-weight: 700; font-size: 14px; letter-spacing: 0.18em; text-transform: uppercase; }
+.tabs button + button { border-left: 0; }
+.tabs button:active { background: rgba(247, 238, 218, 0.15); }
+.tabs button[aria-current="page"] { background: var(--bg); color: var(--red); }
+.bar .clock { margin-left: auto; font-family: var(--f-mono); font-size: 14px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--bg); white-space: nowrap; }
+.notice { background: var(--gold); color: var(--ink); font-family: var(--f-mono); font-size: 14px; padding-block: 7px; padding-left: max(18px, env(safe-area-inset-left, 0px)); padding-right: max(18px, env(safe-area-inset-right, 0px)); }
+.notice:empty { display: none; }
+main { min-height: 0; overflow: hidden; }
+
+/* Buttons */
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; border: 2px solid var(--red); background: transparent; color: var(--red); padding: 8px 18px; cursor: pointer; min-height: 48px; white-space: nowrap;
+  font-family: var(--f-mono); font-weight: 700; font-size: 14px; letter-spacing: 0.14em; text-transform: uppercase; }
+.btn:active { background: var(--gold-soft); }
+.btn.primary { background: var(--red); color: var(--bg); }
+.btn.primary:active { background: var(--red-dark); border-color: var(--red-dark); }
+.btn.gold { background: var(--gold); border-color: var(--gold); color: var(--ink); }
+.btn.gold:active { background: var(--gold-dark); border-color: var(--gold-dark); }
+.btn.ghost { border-color: transparent; color: var(--brown); padding-inline: 10px; }
+.btn.ghost:active { color: var(--red); background: transparent; }
+.btn.big { min-height: 66px; font-size: 17px; letter-spacing: 0.16em; width: 100%; }
+.btn.small { min-height: 40px; padding: 4px 12px; font-size: 12.5px; letter-spacing: 0.12em; }
+.btn:disabled { opacity: 0.4; cursor: not-allowed; }
+input[type="text"] { background: var(--bg); border: 2px solid var(--red); padding: 8px 12px; min-height: 52px; width: 100%; color: var(--ink); border-radius: 0; font-size: 18px; }
+input:focus { outline: 3px solid var(--gold); outline-offset: 2px; }
+label.f { display: grid; gap: 6px; }
+label.f > span, .label { font-family: var(--f-mono); font-weight: 700; font-size: 12.5px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--red); }
+.row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.muted { color: var(--brown); }
+.small { font-size: 15px; }
+.empty { padding: 32px 16px; text-align: center; color: var(--brown); border: 2px dashed var(--rule); }
+.seg { display: inline-flex; }
+.seg button { border: 2px solid var(--red); background: transparent; color: var(--red); padding: 6px 18px; cursor: pointer; min-height: 48px; font-family: var(--f-mono); font-weight: 700; font-size: 13px; letter-spacing: 0.12em; text-transform: uppercase; }
+.seg button + button { border-left: 0; }
+.seg button[aria-pressed="true"] { background: var(--red); color: var(--bg); }
+.chips { display: flex; gap: 10px; flex-wrap: wrap; }
+.chip { border: 2px solid var(--red); background: transparent; color: var(--red); padding: 8px 16px; min-height: 48px; cursor: pointer; font-family: var(--f-mono); font-weight: 700; font-size: 14px; letter-spacing: 0.1em; text-transform: uppercase; }
+.chip:active { background: var(--gold-soft); }
+.pill { display: inline-block; padding: 1px 8px; font-family: var(--f-mono); font-weight: 700; font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase; white-space: nowrap; }
+.pill.good { background: var(--good-soft); color: var(--good); }
+.pill.plain { background: var(--gold); color: var(--ink); }
+.pill.bad { background: var(--red); color: var(--bg); }
+.banner { background: var(--red); color: var(--gold); font-family: var(--f-display); font-size: 22px; letter-spacing: 0.06em; text-transform: uppercase; padding: 10px 18px; margin: 0; }
+
+/* Register */
+.counter { display: grid; grid-template-columns: minmax(0, 1fr) 430px; height: 100%; min-height: 0; }
+.shelf { min-height: 0; overflow: auto; display: grid; gap: 18px; align-content: start; -webkit-overflow-scrolling: touch;
+  padding-block: 22px 32px; padding-left: max(20px, env(safe-area-inset-left, 0px)); padding-right: 20px; }
+.shelf .head { display: flex; align-items: center; gap: 12px; }
+.shelf .head .btn { margin-left: auto; }
+.tags { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 14px; }
+/* Each service is a framed tag with a punched hole, as on the desktop register. */
+.tag { position: relative; text-align: left; border: 2px solid var(--red); background: var(--card); padding: 7px; cursor: pointer; display: block; box-shadow: 0 4px 12px var(--shade); transition: transform 0.1s; min-width: 0; }
+.tag > .in { border: 1px solid var(--gold); padding: 26px 14px 14px; display: grid; gap: 6px; height: 100%; position: relative; min-height: 132px; align-content: start; }
+.tag .in::before { content: ""; position: absolute; top: 9px; left: 50%; width: 11px; height: 11px; margin-left: -5.5px; border-radius: 50%; background: var(--bg); box-shadow: inset 0 0 0 1.5px var(--red); }
+.tag:active { transform: scale(0.97); }
+.tag .cat { font-family: var(--f-mono); font-weight: 700; font-size: 11.5px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--red); }
+.tag .nm { font-family: var(--f-display); font-size: 20px; line-height: 1.2; color: var(--ink); overflow-wrap: anywhere; }
+.tag .price { font-family: var(--f-mono); font-size: 19px; font-weight: 700; color: var(--red); margin-top: auto; }
+.tag.svc, .tag.svc > .in { border-style: dashed; }
+.tag.fixed { border-color: var(--gold); }
+.tag.fixed .nm { color: var(--red); }
+
+.today { display: grid; gap: 10px; }
+.stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.stat { border: 2px solid var(--red); background: var(--card); padding: 10px 14px; display: grid; gap: 2px; min-width: 0; }
+.stat .label { color: var(--brown); font-size: 11.5px; letter-spacing: 0.12em; }
+.stat .v { font-family: var(--f-display); font-size: 28px; line-height: 1.15; color: var(--red); }
+.list { border: 2px solid var(--red); background: var(--card); }
+.list button { display: grid; grid-template-columns: 90px 1fr auto; gap: 12px; align-items: center; width: 100%; text-align: left; border: 0; border-top: 1px solid var(--rule); background: none; padding: 12px 16px; min-height: 56px; cursor: pointer; }
+.list button:first-child { border-top: 0; }
+.list button:active { background: var(--gold-soft); }
+.list .no { font-family: var(--f-mono); font-weight: 700; color: var(--red); }
+.list .what { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.list .amt { font-family: var(--f-mono); font-weight: 700; text-align: right; }
+.list button.void .what, .list button.void .amt { text-decoration: line-through; color: var(--brown); }
+
+/* Current sale */
+.tape { min-width: 0; background: var(--card); border-left: 2px solid var(--red); display: flex; flex-direction: column; min-height: 0;
+  padding-right: env(safe-area-inset-right, 0px); }
+.tape .top { display: flex; align-items: center; background: var(--red); padding-right: 6px; flex: none; }
+.tape .top .banner { flex: 1; }
+.tape .top .btn.ghost { color: var(--bg); }
+.lines { flex: 1 1 auto; overflow: auto; min-height: 0; -webkit-overflow-scrolling: touch; }
+.line { padding: 12px 18px; border-bottom: 1px solid var(--rule); display: grid; grid-template-columns: 1fr auto; gap: 4px 10px; }
+.line .what { min-width: 0; }
+.line .what b { font-family: var(--f-display); font-weight: 400; font-size: 19px; overflow-wrap: anywhere; }
+.line .opts { font-size: 14px; color: var(--brown); }
+.line .amt { text-align: right; font-family: var(--f-mono); font-weight: 700; font-size: 18px; }
+.line .amt s { color: var(--brown); font-weight: 400; font-size: 14px; display: block; }
+.line .ctl { grid-column: 1 / -1; display: flex; gap: 6px; align-items: center; }
+.qty { display: inline-flex; align-items: center; border: 2px solid var(--red); }
+.qty button { border: 0; background: none; width: 46px; height: 40px; cursor: pointer; font-size: 22px; color: var(--red); font-weight: 700; }
+.qty button:active { background: var(--gold-soft); }
+.qty span { min-width: 30px; text-align: center; font-family: var(--f-mono); font-weight: 700; font-size: 18px; }
+.sums { border-top: 2px solid var(--red); padding: 14px 18px 18px; display: grid; gap: 6px; flex: none; }
+.sum { display: flex; justify-content: space-between; font-family: var(--f-mono); }
+.sum.total { font-family: var(--f-display); font-size: 30px; color: var(--red); padding-top: 6px; border-top: 1px solid var(--gold); margin-top: 4px; align-items: baseline; }
+.sum.total span:last-child { font-family: var(--f-mono); font-weight: 700; font-size: 26px; }
+.sums .btn.big { margin-top: 8px; }
+
+/* Customers */
+.page { height: 100%; overflow: auto; padding-block: 32px 48px; padding-left: max(20px, env(safe-area-inset-left, 0px)); padding-right: max(20px, env(safe-area-inset-right, 0px)); }
+.page > .wrap { max-width: 900px; margin: 0 auto; display: grid; gap: 20px; }
+.frame { border: 2px solid var(--red); padding: 7px; background: var(--card); box-shadow: 0 6px 18px var(--shade); }
+.frame > .in { border: 1px solid var(--gold); padding: 48px 24px; display: grid; gap: 10px; justify-items: center; text-align: center; }
+.frame .glyph { width: 72px; height: 72px; }
+
+/* Dialogs */
+.scrim { position: fixed; inset: 0; background: var(--scrim); display: grid; place-items: center; z-index: 50;
+  padding: max(16px, env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) max(16px, env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px)); }
+.dialog { background: var(--card); border: 2px solid var(--red); padding: 9px; box-shadow: 0 12px 40px rgba(58, 29, 29, 0.45); width: min(600px, 100%); max-height: 100%; overflow: auto; }
+.dialog > .in { border: 1px solid var(--gold); padding: 22px; display: grid; gap: 16px; }
+.dialog.wide { width: min(860px, 100%); }
+.dialog .foot { display: flex; gap: 10px; justify-content: flex-end; flex-wrap: wrap; padding-top: 4px; }
+.dialog .foot .left { margin-right: auto; }
+.choice { display: flex; flex-wrap: wrap; gap: 10px; }
+.choice button { border: 2px solid var(--red); background: transparent; color: var(--ink); padding: 8px 20px; min-height: 52px; cursor: pointer; font-family: var(--f-mono); font-weight: 700; font-size: 15px; letter-spacing: 0.08em; text-transform: uppercase; }
+.choice button[aria-pressed="true"] { background: var(--red); color: var(--bg); }
+.due { display: flex; align-items: baseline; justify-content: space-between; padding: 14px 18px; background: var(--red); color: var(--bg); margin: 0; }
+.due > span:first-child { font-family: var(--f-mono); font-weight: 700; font-size: 13px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--gold); }
+.due .money { font-size: 34px; font-weight: 700; }
+.pays { display: grid; gap: 6px; }
+.pay { display: flex; justify-content: space-between; align-items: center; font-family: var(--f-mono); }
+.terminal { border: 2px solid var(--gold); padding: 14px 16px; display: grid; gap: 12px; background: var(--gold-soft); }
+.terminal .money { font-size: 26px; font-weight: 700; color: var(--red); }
+.amtbox { font-family: var(--f-mono); font-weight: 700; font-size: 34px; color: var(--red); background: var(--bg); border: 2px solid var(--red); padding: 6px 14px; text-align: right; min-height: 60px; font-variant-numeric: tabular-nums; }
+.keypad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.keypad button { min-height: 62px; border: 2px solid var(--red); background: var(--bg); color: var(--ink); font-family: var(--f-mono); font-weight: 700; font-size: 26px; cursor: pointer; }
+.keypad button:active { background: var(--gold); }
+.keypad button.word { font-size: 13px; letter-spacing: 0.16em; text-transform: uppercase; }
+.pad-wrap { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 18px; align-items: start; }
+.edit-row { display: grid; grid-template-columns: minmax(0, 1fr) 130px auto; gap: 8px; align-items: center; }
+.edit-row input { min-height: 48px; font-size: 17px; }
+.receipt-view { display: grid; grid-template-columns: minmax(0, 300px) minmax(0, 1fr); gap: 22px; align-items: start; }
+.slip { background: var(--slip); color: var(--slip-ink); padding: 18px 16px 22px; box-shadow: 0 2px 10px var(--shade);
+  -webkit-mask: radial-gradient(circle 5px at 50% 100%, transparent 98%, #000) 0 0 / 14px 100% repeat-x; mask: radial-gradient(circle 5px at 50% 100%, transparent 98%, #000) 0 0 / 14px 100% repeat-x; }
+.rc { font-family: var(--f-mono); font-size: 13px; line-height: 1.4; color: var(--slip-ink); }
+.rc-c { text-align: center; }
+.rc-shop { font-family: var(--f-display); font-size: 19px; margin-bottom: 2px; }
+.rc-r { display: flex; justify-content: space-between; gap: 10px; }
+.rc-r span:last-child { white-space: nowrap; }
+.rc-o { padding-left: 14px; color: var(--brown); font-size: 12px; }
+.rc-b { font-weight: 700; }
+.rc-big { font-size: 16px; }
+.rc-hr { border-top: 1px dashed var(--brown); margin: 8px 0; }
+.change-due { margin: 8px 0 0; }
+
+.toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(24px + env(safe-area-inset-bottom, 0px)); background: var(--ink); color: var(--bg); padding: 12px 20px; z-index: 80; box-shadow: 0 8px 24px var(--shade); max-width: calc(100% - 32px); border-left: 4px solid var(--gold); font-size: 16px; }
+.toast.bad { background: var(--red); border-left-color: var(--ink); }
+
+/* Portrait tablet */
+@media (max-width: 900px) {
+  .counter { grid-template-columns: minmax(0, 1fr) 360px; }
+  .bar .clock { display: none; }
+  .tags { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+}
+/* Phone width: stack everything and let the page scroll */
+@media (max-width: 640px) {
+  body { overflow: auto; }
+  #app { height: auto; min-height: 100%; }
+  main { overflow: visible; }
+  .counter { grid-template-columns: 1fr; height: auto; }
+  .shelf { overflow: visible; padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-left: max(16px, env(safe-area-inset-left, 0px)); }
+  .tape { border-left: 0; border-top: 2px solid var(--red); }
+  .lines { overflow: visible; }
+  .bar { gap: 12px; flex-wrap: wrap; }
+  .brand img { height: 44px; }
+  .brand span { display: none; }
+  .tabs button { padding: 8px 14px; font-size: 12px; letter-spacing: 0.1em; min-height: 44px; }
+  .stats { grid-template-columns: 1fr 1fr; }
+  .pad-wrap, .receipt-view { grid-template-columns: 1fr; }
+  .edit-row { grid-template-columns: minmax(0, 1fr) 100px auto; }
+  .list button { grid-template-columns: 70px 1fr auto; }
+  .page { height: auto; }
+}
+</style>
+
+<div id="app">
+  <header class="bar">
+    <div class="brand"><img src="logo.png" alt="Bespoke Tailoring"><span>Register</span></div>
+    <nav class="tabs" aria-label="Screens">
+      <button data-act="nav" data-v="register" id="tab-register" aria-current="page">Register</button>
+      <button data-act="nav" data-v="customers" id="tab-customers">Customers</button>
+    </nav>
+    <div class="clock" id="clock"></div>
+  </header>
+  <div class="notice" id="notice"></div>
+  <main id="main"><div class="empty" style="margin:24px">Opening the register…</div></main>
+</div>
+<div id="dlg"></div>
+
+<script src="version.js"></script>
+<script>
+(() => {
+  // ---------- money (whole cents), same math as the desktop register ----------
+  const toCents = (s) => { const n = Number(String(s ?? "").replace(/[^0-9.\-]/g, "")); return isFinite(n) ? Math.round(n * 100) : 0; };
+  const m = (c) => (c < 0 ? "-$" : "$") + (Math.abs(c) / 100).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  const pct = (v) => Math.max(0, Math.min(100, Number(v) || 0));
+  function discountOf(amount, d) {
+    if (!d || !d.value) return 0;
+    if (d.type === "%") return Math.round((amount * pct(d.value)) / 100);
+    return Math.max(0, Math.min(amount, Math.round(d.value)));
+  }
+  function allocate(total, weights) {
+    const sum = weights.reduce((a, b) => a + b, 0);
+    if (!sum || !total) return weights.map(() => 0);
+    const raw = weights.map((w) => (total * w) / sum);
+    const out = raw.map(Math.floor);
+    let left = total - out.reduce((a, b) => a + b, 0);
+    const order = raw.map((r, i) => [r - Math.floor(r), i]).sort((a, b) => b[0] - a[0]);
+    for (let k = 0; left > 0 && k < order.length; k++, left--) out[order[k][1]]++;
+    return out;
+  }
+  function totals(lines, cartDisc) {
+    const gross = lines.map((l) => l.price * l.qty);
+    const lineDisc = lines.map((l, i) => discountOf(gross[i], l.disc));
+    const afterLine = gross.map((g, i) => g - lineDisc[i]);
+    const cartOff = discountOf(afterLine.reduce((a, b) => a + b, 0), cartDisc);
+    const share = allocate(cartOff, afterLine);
+    const net = afterLine.map((a, i) => a - share[i]);
+    const sum = (a) => a.reduce((x, y) => x + y, 0);
+    return { subtotal: sum(gross), discount: sum(lineDisc) + cartOff, total: sum(net), perLine: net };
+  }
+  function paymentState(total, payments) {
+    const paid = payments.reduce((a, p) => a + p.amount, 0);
+    const due = total - paid;
+    return { paid, due: Math.max(0, due) };
+  }
+
+  // ---------- helpers ----------
+  const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+  const dayOf = (iso) => { const d = new Date(iso); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
+  const today = () => dayOf(new Date().toISOString());
+  const timeOf = (iso) => new Date(iso).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  const dateLong = (iso) => new Date(iso).toLocaleString([], { weekday: "short", month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" });
+  const discLabel = (d) => (!d || !d.value ? "" : d.type === "%" ? `${d.value}% off` : `${m(d.value)} off`);
+  const recNo = (s) => `T-${s.no}`;
+
+  const SHOP = { name: "Bespoke Tailoring", address: "34 W 8th St, Erie, PA 16501", phone: "(814) 860-4797", footer: "Thank you for visiting Bespoke Tailoring." };
+  const START_NO = 1001;
+
+  // ---------- state ----------
+  let settings = { services: [], nextReceipt: START_NO };
+  let sales = [];
+  let ready = false;
+  let store = null; // "db" when saving to the shared store, "local" when only this browser
+  const UI = { view: "register", cart: [], cartDisc: null, dialog: null };
+
+  // ---------- storage ----------
+  let db = null;
+  const LS = "bespoke-tablet-v1";
+  const readLocal = () => { try { return JSON.parse(localStorage.getItem(LS) || "null"); } catch { return null; } };
+  const writeLocal = () => { try { localStorage.setItem(LS, JSON.stringify({ settings, sales })); } catch {} };
+
+  async function saveSettings() {
+    writeLocal();
+    if (store !== "db") return;
+    try { await db.doc("settings/main").set({ services: settings.services, nextReceipt: settings.nextReceipt }); }
+    catch { toast("Couldn't save the change. Check the tablet's internet connection.", true); }
+  }
+  async function saveSale(sale) {
+    writeLocal();
+    if (store !== "db") return;
+    try { await db.collection("sales").doc(sale.id).set(sale); }
+    catch { toast(`Receipt ${recNo(sale)} is kept on this tablet but couldn't reach the shared record. Check the internet connection.`, true); }
+  }
+
+  async function connect() {
+    const local = readLocal();
+    if (local) { settings = { ...settings, ...local.settings }; sales = local.sales || []; }
+    try { db = await window.claude?.use?.("db"); } catch { db = null; }
+    if (!db) {
+      store = "local";
+      ready = true;
+      if (!IN_APP) notice("Sales are being kept in this tablet's browser only. Sign in to claude.ai on this tablet to keep them in the shared record.");
+      render();
+      return;
+    }
+    store = "db";
+    try {
+      const s = await db.doc("settings/main").get();
+      if (s.exists) {
+        const d = s.data() || {};
+        settings.services = Array.isArray(d.services) ? d.services : [];
+        settings.nextReceipt = Math.max(Number(d.nextReceipt) || START_NO, settings.nextReceipt || START_NO);
+      }
+    } catch {}
+    ready = true;
+    render();
+    db.doc("settings/main").onSnapshot((snap) => {
+      if (!snap.exists || snap.metadata.hasPendingWrites) return;
+      const d = snap.data() || {};
+      if (Array.isArray(d.services)) settings.services = d.services;
+      settings.nextReceipt = Math.max(Number(d.nextReceipt) || START_NO, settings.nextReceipt);
+      writeLocal();
+      if (!UI.dialog) refreshShelf();
+    }, () => {});
+    db.collection("sales").orderBy("date", "desc").limit(300).onSnapshot((snap) => {
+      const remote = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      const ids = new Set(remote.map((x) => x.id));
+      const pending = sales.filter((x) => !ids.has(x.id));
+      for (const p of pending) db.collection("sales").doc(p.id).set(p).catch(() => {});
+      sales = [...remote, ...pending].sort((a, b) => (a.date < b.date ? 1 : -1));
+      writeLocal();
+      refreshShelf();
+    }, () => notice("Couldn't load the sales record. New sales are kept on this tablet until the connection is back."));
+  }
+
+  // ---------- render ----------
+  const main = document.getElementById("main");
+  const dlg = document.getElementById("dlg");
+  function notice(text) { document.getElementById("notice").textContent = text || ""; }
+
+  // ---------- updates (installed Android app only) ----------
+  // New versions are published on GitHub. When one is out, a bar offers the new APK;
+  // Android then shows its installer and you tap Install.
+  const IN_APP = !!window.Capacitor;
+  const APP_VERSION = window.APP_VERSION || "0.0.0";
+  const RELEASES = "https://api.github.com/repos/bespoketailoringerie/bespoke-tailoring-apps/releases/latest";
+  const newer = (a, b) => { const x = String(a).replace(/^v/, "").split(".").map(Number), y = String(b).replace(/^v/, "").split(".").map(Number); for (let i = 0; i < 3; i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0); } return false; };
+  async function checkUpdate() {
+    if (!IN_APP) return;
+    try {
+      const r = await fetch(RELEASES, { headers: { accept: "application/vnd.github+json" } });
+      if (!r.ok) return;
+      const rel = await r.json();
+      const apk = (rel.assets || []).find((a) => /\.apk$/i.test(a.name));
+      if (!apk || !newer(rel.tag_name, APP_VERSION)) return;
+      const n = document.getElementById("notice");
+      n.textContent = `Version ${String(rel.tag_name).replace(/^v/, "")} of this app is ready. `;
+      const a = document.createElement("a");
+      a.href = apk.browser_download_url; a.target = "_blank"; a.rel = "noopener";
+      a.textContent = "Download the update";
+      a.style.cssText = "color:inherit;font-weight:700";
+      n.appendChild(a);
+      n.appendChild(document.createTextNode(", then open it and tap Install."));
+    } catch {}
+  }
+
+  function render() {
+    for (const v of ["register", "customers"]) {
+      const b = document.getElementById("tab-" + v);
+      if (UI.view === v) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current");
+    }
+    main.innerHTML = UI.view === "customers" ? customersView() : registerView();
+    renderDialog();
+  }
+  function renderDialog() {
+    dlg.innerHTML = dialogHtml();
+    const f = dlg.querySelector("[autofocus]");
+    if (f) f.focus();
+  }
+  const refreshTape = () => { const a = document.querySelector(".tape"); if (a) a.innerHTML = tapeHtml(); };
+  const refreshShelf = () => { const a = document.querySelector(".shelf"); if (a) a.innerHTML = shelfHtml(); };
+
+  function registerView() {
+    return `<div class="counter">
+      <section class="shelf" aria-label="Services">${shelfHtml()}</section>
+      <aside class="tape" aria-label="Current sale">${tapeHtml()}</aside>
+    </div>`;
+  }
+
+  function shelfHtml() {
+    if (!ready) return `<div class="empty">Opening the register…</div>`;
+    const svc = settings.services || [];
+    const tiles = svc.map((s, i) => `<button class="tag${s.fixed ? " fixed" : ""}" data-act="service" data-i="${i}"><span class="in">
+        <span class="cat">${s.fixed ? "Made to measure" : "Alteration"}</span><span class="nm">${esc(s.name)}</span><span class="price">${m(s.price)}</span></span></button>`).join("");
+    const todays = sales.filter((s) => dayOf(s.date) === today());
+    const live = todays.filter((s) => !s.voided);
+    const taken = live.reduce((a, s) => a + s.total, 0);
+    const pieces = live.reduce((a, s) => a + s.lines.reduce((x, l) => x + l.qty, 0), 0);
+    return `
+      <div class="head"><span class="label">Alterations &amp; custom</span><button class="btn small ghost" data-act="edit-svc">Edit buttons</button></div>
+      <div class="tags">${tiles}
+        <button class="tag svc" data-act="custom"><span class="in"><span class="cat">Any amount</span><span class="nm">+ Custom amount</span><span class="price muted">$ —</span></span></button>
+      </div>
+      ${svc.length ? "" : `<p class="muted small" style="margin:0">Tap <b>Edit buttons</b> to add your usual alterations with their prices, so they ring up in one tap.</p>`}
+      <div class="today">
+        <div class="head"><span class="label">Today on this tablet</span></div>
+        <div class="stats">
+          <div class="stat"><span class="label">Sales</span><span class="v num">${live.length}</span></div>
+          <div class="stat"><span class="label">Taken in</span><span class="v num">${m(taken)}</span></div>
+          <div class="stat"><span class="label">Pieces</span><span class="v num">${pieces}</span></div>
+        </div>
+        ${todays.length ? `<div class="list">${todays.map((s) => `<button class="${s.voided ? "void" : ""}" data-act="sale-open" data-id="${esc(s.id)}">
+            <span class="no">${recNo(s)}</span>
+            <span class="what">${timeOf(s.date)} · ${esc(s.lines.map((l) => l.name).join(", "))}${s.voided ? " · voided" : ""}</span>
+            <span class="amt">${m(s.total)}</span></button>`).join("")}</div>`
+          : `<div class="empty">No sales yet today. Finished sales show here so you can pull up the receipt again.</div>`}
+      </div>`;
+  }
+
+  function cartTotals() { return totals(UI.cart, UI.cartDisc); }
+  function tapeHtml() {
+    const t = cartTotals();
+    return `
+      <div class="top"><h2 class="banner">Current sale</h2>
+        <button class="btn small ghost" data-act="cart-disc" ${UI.cart.length ? "" : "disabled"}>Discount</button>
+        <button class="btn small ghost" data-act="cart-clear" ${UI.cart.length ? "" : "disabled"}>Clear</button></div>
+      <div class="lines">
+        ${UI.cart.length ? UI.cart.map((l, i) => {
+          const gross = l.price * l.qty; const off = discountOf(gross, l.disc);
+          return `<div class="line"><div class="what"><b>${esc(l.name)}</b>
+              <div class="opts">${l.fixed ? "Made to measure" : "Service"}${l.disc && l.disc.value ? ` · <span class="pill plain">${esc(discLabel(l.disc))}</span>` : ""}</div></div>
+            <div class="amt">${off ? `<s>${m(gross)}</s>` : ""}${m(gross - off)}</div>
+            <div class="ctl"><span class="qty"><button data-act="line-dec" data-i="${i}" aria-label="One fewer">−</button><span>${l.qty}</span><button data-act="line-inc" data-i="${i}" aria-label="One more">+</button></span>
+              <button class="btn small ghost" data-act="line-disc" data-i="${i}">Discount</button>
+              <button class="btn small ghost" data-act="line-del" data-i="${i}" style="margin-left:auto">Remove</button></div></div>`;
+        }).join("") : `<div class="empty" style="margin:16px 18px">Tap a service tag, or Custom amount, to start a sale.</div>`}
+      </div>
+      <div class="sums">
+        <div class="sum"><span>Subtotal</span><span>${m(t.subtotal)}</span></div>
+        ${t.discount ? `<div class="sum"><span>Discounts${UI.cartDisc && UI.cartDisc.value ? " · " + esc(discLabel(UI.cartDisc)) + " on sale" : ""}</span><span>${m(-t.discount)}</span></div>` : ""}
+        <div class="sum total"><span>Total</span><span>${m(t.total)}</span></div>
+        <button class="btn primary big" data-act="charge" ${UI.cart.length ? "" : "disabled"}>${UI.cart.length && t.total === 0 ? "Finish sale" : `Take payment · ${m(t.total)}`}</button>
+      </div>`;
+  }
+
+  function customersView() {
+    return `<div class="page"><div class="wrap">
+      <div><span class="label">Customers</span><h2>Customer list</h2></div>
+      <div class="frame"><div class="in">
+        <svg class="glyph" viewBox="0 0 72 72" aria-hidden="true"><rect x="10" y="14" width="52" height="44" fill="none" stroke="var(--red)" stroke-width="2"/><rect x="14" y="18" width="44" height="36" fill="none" stroke="var(--gold)" stroke-width="1"/><circle cx="36" cy="31" r="7" fill="none" stroke="var(--red)" stroke-width="2"/><path d="M23 49c2-7 7-10 13-10s11 3 13 10" fill="none" stroke="var(--red)" stroke-width="2"/></svg>
+        <h3 style="font-size:24px">No customers yet</h3>
+        <p class="muted" style="margin:0;max-width:46ch">This tab is set aside for the customer list. It's empty for now.</p>
+      </div></div>
+    </div></div>`;
+  }
+
+  // ---------- receipts ----------
+  function receiptBody(rec) {
+    const row = (a, b, cls = "") => `<div class="rc-r ${cls}"><span>${a}</span><span>${b}</span></div>`;
+    let b = `<div class="rc-c"><div class="rc-shop">${esc(SHOP.name)}</div><div>${esc(SHOP.address)}</div><div>${esc(SHOP.phone)}</div></div><div class="rc-hr"></div>`;
+    b += row(`Receipt ${recNo(rec)}`, "", "rc-b") + row(dateLong(rec.date), "");
+    if (rec.voided) b += `<div class="rc-c rc-b">*** VOIDED ***</div>`;
+    b += `<div class="rc-hr"></div>`;
+    for (const l of rec.lines) {
+      b += row(`${l.qty} × ${esc(l.name)}`, m(l.price * l.qty));
+      if (l.disc && l.disc.value) b += row(`&nbsp;&nbsp;${esc(discLabel(l.disc))}`, m(-discountOf(l.price * l.qty, l.disc)), "rc-o");
+    }
+    b += `<div class="rc-hr"></div>` + row("Subtotal", m(rec.subtotal));
+    if (rec.discount) b += row(`Discounts${rec.cartDisc && rec.cartDisc.value ? " (incl. " + esc(discLabel(rec.cartDisc)) + ")" : ""}`, m(-rec.discount));
+    b += row("TOTAL", m(rec.total), "rc-b rc-big") + `<div class="rc-hr"></div>`;
+    for (const p of rec.payments) b += row(esc(p.method) + (p.ref ? ` (${esc(p.ref)})` : ""), m(p.amount));
+    if (rec.change) b += row("Change", m(rec.change));
+    b += `<div class="rc-hr"></div><div class="rc-c">${esc(SHOP.footer)}</div>`;
+    return `<div class="rc">${b}</div>`;
+  }
+  function receiptText(rec) {
+    const W = 36, r = (a, b) => a + " ".repeat(Math.max(1, W - a.length - b.length)) + b, hr = "-".repeat(W);
+    const out = [SHOP.name, SHOP.address, SHOP.phone, hr, `Receipt ${recNo(rec)}`, dateLong(rec.date)];
+    if (rec.voided) out.push("*** VOIDED ***");
+    out.push(hr);
+    for (const l of rec.lines) { out.push(r(`${l.qty} x ${l.name}`, m(l.price * l.qty))); if (l.disc && l.disc.value) out.push(r(`  ${discLabel(l.disc)}`, m(-discountOf(l.price * l.qty, l.disc)))); }
+    out.push(hr, r("Subtotal", m(rec.subtotal)));
+    if (rec.discount) out.push(r("Discounts", m(-rec.discount)));
+    out.push(r("TOTAL", m(rec.total)), hr);
+    for (const p of rec.payments) out.push(r(p.method + (p.ref ? ` (${p.ref})` : ""), m(p.amount)));
+    if (rec.change) out.push(r("Change", m(rec.change)));
+    out.push(hr, SHOP.footer);
+    return out.join("\n");
+  }
+
+  // ---------- dialogs ----------
+  function keypad() {
+    return `<div class="keypad">${["1", "2", "3", "4", "5", "6", "7", "8", "9", "00", "0", "⌫"].map((k) => `<button data-act="key" data-k="${k}" ${k === "⌫" ? 'aria-label="Delete last digit"' : ""}>${k}</button>`).join("")}</div>`;
+  }
+  const padCents = (d) => Number(d.digits || "0");
+
+  function dialogHtml() {
+    const d = UI.dialog;
+    if (!d) return "";
+    const wrap = (inner, wide) => `<div class="scrim" data-act="scrim"><div class="dialog ${wide ? "wide" : ""}" role="dialog" aria-modal="true"><div class="in">${inner}</div></div></div>`;
+
+    if (d.type === "custom") {
+      return wrap(`<h2>Custom amount</h2>
+        <div class="pad-wrap">
+          <div style="display:grid;gap:14px">
+            <label class="f"><span>Description</span><input type="text" id="cu-name" value="${esc(d.name)}" data-in="dlg" data-k="name" placeholder="e.g. Hem trousers" autocomplete="off"></label>
+            <div style="display:grid;gap:6px"><span class="label">Price</span><div class="amtbox" id="amtbox">${m(padCents(d))}</div></div>
+            <p class="muted small" style="margin:0">Type the price on the keypad. 1 5 0 0 rings up $15.00.</p>
+          </div>
+          ${keypad()}
+        </div>
+        <div class="foot"><button class="btn" data-act="close">Cancel</button><button class="btn primary" data-act="custom-add">Add to sale</button></div>`, true);
+    }
+    if (d.type === "disc") {
+      const base = d.target === "cart" ? null : UI.cart[d.target];
+      return wrap(`<h2>${d.target === "cart" ? "Discount the whole sale" : "Discount " + esc(base.name)}</h2>
+        <div class="row"><div class="seg"><button data-act="disc-type" data-t="%" aria-pressed="${d.dtype === "%"}">Percent</button><button data-act="disc-type" data-t="$" aria-pressed="${d.dtype === "$"}">Dollars</button></div>
+          <input type="text" id="disc-v" inputmode="decimal" style="max-width:150px" value="${esc(d.value)}" data-in="dlg" data-k="value" placeholder="${d.dtype === "%" ? "10" : "5.00"}"></div>
+        <div class="chips">${(d.dtype === "%" ? ["10", "15", "20", "25", "50"] : ["5", "10", "20", "25"]).map((v) => `<button class="chip" data-act="disc-quick" data-v="${v}">${d.dtype === "%" ? v + "%" : "$" + v}</button>`).join("")}</div>
+        <div class="foot"><button class="btn ghost left" data-act="disc-clear">Remove discount</button><button class="btn" data-act="close">Cancel</button><button class="btn primary" data-act="disc-apply">Apply</button></div>`);
+    }
+    if (d.type === "edit-svc") {
+      return wrap(`<h2>Service buttons</h2>
+        <p class="muted small" style="margin:0">These are the tags on the Register. Tick Made to measure for set-price garments like a custom shirt.</p>
+        <div style="display:grid;gap:10px">${d.rows.length ? d.rows.map((r, i) => `<div class="edit-row">
+            <input type="text" id="sv-n-${i}" value="${esc(r.name)}" data-in="svc" data-i="${i}" data-k="name" placeholder="Name" aria-label="Button name" autocomplete="off">
+            <input type="text" id="sv-p-${i}" value="${esc(r.price)}" data-in="svc" data-i="${i}" data-k="price" inputmode="decimal" placeholder="0.00" aria-label="Price" class="money">
+            <button class="btn small ghost" data-act="svc-del" data-i="${i}">Remove</button>
+            <label class="row small" style="grid-column:1/-1;gap:8px"><input type="checkbox" id="sv-f-${i}" data-in="svc" data-i="${i}" data-k="fixed" ${r.fixed ? "checked" : ""} style="width:22px;height:22px;accent-color:var(--red)"> Made to measure</label>
+          </div>`).join("") : `<div class="empty">No buttons yet.</div>`}</div>
+        <div class="foot"><button class="btn left" data-act="svc-add">+ Add a button</button><button class="btn" data-act="close">Cancel</button><button class="btn primary" data-act="svc-save">Save buttons</button></div>`, true);
+    }
+    if (d.type === "pay") return wrap(payHtml(d));
+    if (d.type === "receipt") {
+      const rec = sales.find((x) => x.id === d.id);
+      if (!rec) return "";
+      return wrap(`<div class="receipt-view"><div class="slip">${receiptBody(rec)}</div>
+        <div style="display:grid;gap:14px;align-content:start">
+          <div><span class="label">${d.fresh ? "Sale complete" : dateLong(rec.date)}</span><h2>Receipt ${recNo(rec)}</h2>
+            ${rec.voided ? '<span class="pill bad">Voided</span>' : ""}
+            ${d.fresh && rec.change ? `<p class="due change-due"><span>Change due</span><span class="money">${m(rec.change)}</span></p>` : ""}</div>
+          <button class="btn" data-act="rc-copy">Copy receipt text</button>
+          <p class="muted small" style="margin:0">Paste it into a text or email to send the customer their receipt.</p>
+          ${!d.fresh && !rec.voided ? `<button class="btn ghost" data-act="rc-void" style="justify-self:start">Void this sale</button>` : ""}
+          <div class="foot">${d.fresh ? `<button class="btn primary" data-act="close">Start next sale</button>` : `<button class="btn" data-act="close">Close</button>`}</div>
+        </div></div>`, true);
+    }
+    if (d.type === "confirm") {
+      return wrap(`<h2>${esc(d.title)}</h2><p style="margin:0">${d.text}</p>
+        <div class="foot"><button class="btn" data-act="close">Keep it</button><button class="btn primary" data-act="confirm-yes">${esc(d.yes)}</button></div>`);
+    }
+    return "";
+  }
+
+  function payHtml(d) {
+    const total = cartTotals().total;
+    const st = paymentState(total, d.payments);
+    const amt = toCents(d.amount);
+    let entry = "";
+    if (st.due > 0) {
+      if (d.method === "Card") entry = `<div class="terminal"><span class="label">On the card terminal</span><span>Key in this amount and have the customer tap or insert their card.</span>
+          <div class="row"><input type="text" id="pay-amt" inputmode="decimal" style="max-width:170px;font-size:22px" class="money" value="${esc(d.amount)}" data-in="dlg" data-k="amount"><span class="small muted">Change it to split the payment.</span></div>
+          <label class="f"><span>Approval code (optional)</span><input type="text" id="pay-ref" style="max-width:240px" value="${esc(d.ref)}" data-in="dlg" data-k="ref" autocomplete="off"></label>
+          <div class="row"><button class="btn gold" data-act="pay-add">Approved on the terminal</button><button class="btn ghost" data-act="pay-declined">Declined</button></div></div>`;
+      else if (d.method === "Cash") {
+        const quick = [...new Set([st.due, Math.ceil(st.due / 500) * 500, Math.ceil(st.due / 1000) * 1000, Math.ceil(st.due / 2000) * 2000, Math.ceil(st.due / 5000) * 5000, Math.ceil(st.due / 10000) * 10000])].filter((v) => v >= st.due).slice(0, 5);
+        entry = `<div class="terminal"><span class="label">Cash received</span>
+          <div class="chips">${quick.map((v) => `<button class="chip" data-act="cash-quick" data-v="${v}">${v === st.due ? "Exact " : ""}${m(v)}</button>`).join("")}</div>
+          <div class="row"><input type="text" id="pay-amt" inputmode="decimal" style="max-width:170px;font-size:22px" class="money" value="${esc(d.amount)}" data-in="dlg" data-k="amount" placeholder="Other amount">
+            <span class="pill good" id="chg" ${amt > st.due ? "" : "hidden"}>Change ${m(Math.max(0, amt - st.due))}</span></div>
+          <div class="row"><button class="btn gold" data-act="pay-add" id="pay-go" ${amt > 0 ? "" : "disabled"}>Take cash</button></div></div>`;
+      } else entry = `<div class="terminal"><span class="label">${d.method === "Check" ? "Check" : "Other payment"}</span>
+          <div class="row"><input type="text" id="pay-amt" inputmode="decimal" style="max-width:170px;font-size:22px" class="money" value="${esc(d.amount)}" data-in="dlg" data-k="amount">
+            <input type="text" id="pay-ref" style="max-width:260px" value="${esc(d.ref)}" data-in="dlg" data-k="ref" placeholder="${d.method === "Check" ? "Check number" : "What was it? e.g. gift certificate"}" autocomplete="off"></div>
+          <div class="row"><button class="btn gold" data-act="pay-add" id="pay-go" ${amt > 0 ? "" : "disabled"}>Record payment</button></div></div>`;
+    }
+    return `<div class="due"><span>${st.due > 0 ? (d.payments.length ? "Still to pay" : "Amount due") : "Paid in full"}</span><span class="money">${m(st.due)}</span></div>
+      ${d.payments.length ? `<div class="pays">${d.payments.map((p, i) => `<div class="pay"><span>${esc(p.method)}${p.ref ? ` (${esc(p.ref)})` : ""} <button class="btn small ghost" data-act="pay-remove" data-i="${i}">Undo</button></span><span>${m(p.amount)}</span></div>`).join("")}
+        ${d.change ? `<div class="pay"><b>Change due</b><b>${m(d.change)}</b></div>` : ""}</div>` : ""}
+      ${st.due > 0 ? `<div class="choice">${["Card", "Cash", "Check", "Other"].map((x) => `<button data-act="pay-method" data-m="${x}" aria-pressed="${d.method === x}">${x}</button>`).join("")}</div>${entry}` : ""}
+      <div class="foot"><button class="btn" data-act="close">Back to sale</button><button class="btn primary" data-act="pay-finish" ${st.due > 0 ? "disabled" : ""}>Finish sale</button></div>`;
+  }
+
+  // ---------- actions ----------
+  function addLine(line) {
+    const same = UI.cart.find((l) => l.name === line.name && l.price === line.price && !l.disc);
+    if (same) same.qty += 1; else UI.cart.push({ key: uid(), qty: 1, disc: null, ...line });
+    refreshTape();
+  }
+  const A = {
+    nav: (el) => { UI.view = el.dataset.v; render(); },
+    scrim: (el, ev) => { if (ev.target === el && UI.dialog && UI.dialog.type !== "pay") A.close(); },
+    close: () => { const fresh = UI.dialog && UI.dialog.fresh; UI.dialog = null; renderDialog(); if (fresh) render(); },
+    service: (el) => { const s = settings.services[Number(el.dataset.i)]; if (s) addLine({ name: s.name, price: s.price, fixed: !!s.fixed }); },
+    custom: () => { UI.dialog = { type: "custom", name: "", digits: "" }; renderDialog(); },
+    key: (el) => {
+      const d = UI.dialog; const k = el.dataset.k;
+      if (k === "⌫") d.digits = (d.digits || "").slice(0, -1);
+      else if ((d.digits || "").length < 7) d.digits = ((d.digits || "") + k).replace(/^0+/, "");
+      const box = document.getElementById("amtbox"); if (box) box.textContent = m(padCents(d));
+    },
+    "custom-add": () => {
+      const d = UI.dialog; const price = padCents(d); const name = String(d.name || "").trim();
+      if (!name) return toast("Add a short description so it shows on the receipt.", true);
+      if (price <= 0) return toast("Type a price above $0 on the keypad.", true);
+      UI.cart.push({ key: uid(), name, price, qty: 1, disc: null });
+      UI.dialog = null; renderDialog(); refreshTape();
+    },
+    "edit-svc": () => { UI.dialog = { type: "edit-svc", rows: settings.services.map((s) => ({ name: s.name, price: (s.price / 100).toFixed(2), fixed: !!s.fixed })) }; renderDialog(); },
+    "svc-add": () => { UI.dialog.rows.push({ name: "", price: "", fixed: false }); renderDialog(); const i = document.getElementById(`sv-n-${UI.dialog.rows.length - 1}`); if (i) i.focus(); },
+    "svc-del": (el) => { UI.dialog.rows.splice(Number(el.dataset.i), 1); renderDialog(); },
+    "svc-save": async () => {
+      const rows = UI.dialog.rows.map((r) => ({ name: String(r.name || "").trim(), price: toCents(r.price), fixed: !!r.fixed })).filter((r) => r.name || r.price);
+      const bad = rows.find((r) => !r.name || r.price <= 0);
+      if (bad) return toast(bad.name ? `Give “${bad.name}” a price above $0.` : "Every button needs a name.", true);
+      settings.services = rows;
+      UI.dialog = null; renderDialog(); refreshShelf();
+      await saveSettings(); toast("Buttons saved.");
+    },
+    "line-inc": (el) => { UI.cart[Number(el.dataset.i)].qty++; refreshTape(); },
+    "line-dec": (el) => { const i = Number(el.dataset.i); if (UI.cart[i].qty > 1) UI.cart[i].qty--; else UI.cart.splice(i, 1); refreshTape(); },
+    "line-del": (el) => { UI.cart.splice(Number(el.dataset.i), 1); refreshTape(); },
+    "line-disc": (el) => { const l = UI.cart[Number(el.dataset.i)]; UI.dialog = { type: "disc", target: Number(el.dataset.i), dtype: (l.disc && l.disc.type) || "%", value: l.disc ? (l.disc.type === "$" ? (l.disc.value / 100).toFixed(2) : String(l.disc.value)) : "" }; renderDialog(); },
+    "cart-disc": () => { const c = UI.cartDisc; UI.dialog = { type: "disc", target: "cart", dtype: (c && c.type) || "%", value: c ? (c.type === "$" ? (c.value / 100).toFixed(2) : String(c.value)) : "" }; renderDialog(); },
+    "disc-type": (el) => { UI.dialog.dtype = el.dataset.t; UI.dialog.value = ""; renderDialog(); },
+    "disc-quick": (el) => { UI.dialog.value = el.dataset.v; A["disc-apply"](); },
+    "disc-apply": () => {
+      const d = UI.dialog;
+      const v = d.dtype === "%" ? pct(d.value) : toCents(d.value);
+      const disc = v > 0 ? { type: d.dtype, value: v } : null;
+      if (d.target === "cart") UI.cartDisc = disc; else UI.cart[d.target].disc = disc;
+      UI.dialog = null; renderDialog(); refreshTape();
+    },
+    "disc-clear": () => { const d = UI.dialog; if (d.target === "cart") UI.cartDisc = null; else UI.cart[d.target].disc = null; UI.dialog = null; renderDialog(); refreshTape(); },
+    "cart-clear": () => { UI.dialog = { type: "confirm", title: "Clear this sale?", text: "Everything on the current sale will be removed. Nothing has been charged.", yes: "Clear sale", run: () => { UI.cart = []; UI.cartDisc = null; refreshTape(); } }; renderDialog(); },
+    "confirm-yes": async () => { const run = UI.dialog.run; UI.dialog = null; renderDialog(); await run(); },
+    charge: () => { const total = cartTotals().total; UI.dialog = { type: "pay", payments: [], method: "Card", amount: (total / 100).toFixed(2), ref: "", change: 0 }; renderDialog(); },
+    "pay-method": (el) => {
+      const d = UI.dialog; d.method = el.dataset.m;
+      const st = paymentState(cartTotals().total, d.payments);
+      d.amount = d.method === "Cash" ? "" : (st.due / 100).toFixed(2); d.ref = "";
+      renderDialog();
+    },
+    "cash-quick": (el) => { UI.dialog.amount = (Number(el.dataset.v) / 100).toFixed(2); A["pay-add"](); },
+    "pay-declined": () => toast("Declined. Try the card again or choose another way to pay."),
+    "pay-add": () => {
+      const d = UI.dialog; const total = cartTotals().total;
+      const st = paymentState(total, d.payments); const amt = toCents(d.amount);
+      if (amt <= 0) return toast("Enter an amount.", true);
+      if (d.method !== "Cash" && amt > st.due) return toast(`That's more than the ${m(st.due)} still owed.`, true);
+      const applied = Math.min(amt, st.due);
+      const p = { method: d.method, amount: applied };
+      if (d.method === "Cash") { p.tendered = amt; d.change = (d.change || 0) + (amt - applied); }
+      if (d.ref) p.ref = String(d.ref).trim().slice(0, 40);
+      d.payments.push(p);
+      const after = paymentState(total, d.payments);
+      d.amount = d.method === "Cash" ? "" : (after.due / 100).toFixed(2); d.ref = "";
+      renderDialog();
+    },
+    "pay-remove": (el) => {
+      const d = UI.dialog; const p = d.payments.splice(Number(el.dataset.i), 1)[0];
+      if (p && p.tendered) d.change = Math.max(0, (d.change || 0) - (p.tendered - p.amount));
+      d.amount = (paymentState(cartTotals().total, d.payments).due / 100).toFixed(2);
+      renderDialog();
+    },
+    "pay-finish": () => finishSale(),
+    "sale-open": (el) => { UI.dialog = { type: "receipt", id: el.dataset.id }; renderDialog(); },
+    "rc-copy": () => {
+      const rec = sales.find((x) => x.id === UI.dialog.id); const text = receiptText(rec);
+      const done = () => toast("Receipt copied. Paste it into a text or email.");
+      try { navigator.clipboard.writeText(text).then(done, () => fallbackCopy(text) ? done() : toast("Couldn't copy on this tablet.", true)); }
+      catch { fallbackCopy(text) ? done() : toast("Couldn't copy on this tablet.", true); }
+    },
+    "rc-void": () => {
+      const rec = sales.find((x) => x.id === UI.dialog.id);
+      const card = rec.payments.filter((p) => p.method === "Card").reduce((a, p) => a + p.amount, 0);
+      UI.dialog = { type: "confirm", title: `Void receipt ${recNo(rec)}?`, text: `The sale stops counting toward today's totals.${card ? ` <b>Also void or refund the ${m(card)} card charge on the terminal.</b>` : ""}`, yes: "Void sale",
+        run: async () => { rec.voided = true; rec.voidedAt = new Date().toISOString(); refreshShelf(); await saveSale(rec); toast(`Receipt ${recNo(rec)} voided.`); } };
+      renderDialog();
+    },
+  };
+  function fallbackCopy(text) {
+    const t = document.createElement("textarea"); t.value = text; t.setAttribute("readonly", ""); t.style.position = "fixed"; t.style.opacity = "0";
+    document.body.appendChild(t); t.select(); let ok = false; try { ok = document.execCommand("copy"); } catch {} t.remove(); return ok;
+  }
+
+  async function finishSale() {
+    const d = UI.dialog; const t = cartTotals();
+    if (paymentState(t.total, d.payments).due > 0) return;
+    const sale = {
+      id: uid(), no: settings.nextReceipt++, date: new Date().toISOString(), device: "tablet",
+      lines: UI.cart.map((l, i) => ({ name: l.name, qty: l.qty, price: l.price, disc: l.disc, fixed: !!l.fixed, net: t.perLine[i] })),
+      cartDisc: UI.cartDisc, subtotal: t.subtotal, discount: t.discount, total: t.total,
+      payments: d.payments.map((p) => ({ method: p.method, amount: p.amount, ...(p.ref ? { ref: p.ref } : {}), ...(p.tendered ? { tendered: p.tendered } : {}) })),
+      change: d.change || 0, voided: false,
+    };
+    sales.unshift(sale);
+    UI.cart = []; UI.cartDisc = null;
+    UI.dialog = { type: "receipt", id: sale.id, fresh: true };
+    render();
+    await saveSale(sale);
+    await saveSettings();
+  }
+
+  // ---------- events ----------
+  document.addEventListener("click", (ev) => {
+    const el = ev.target.closest("[data-act]");
+    if (!el || el.disabled) return;
+    const fn = A[el.dataset.act];
+    if (fn) fn(el, ev);
+    keepAwake();
+  });
+  document.addEventListener("input", (ev) => {
+    const el = ev.target; const kind = el.dataset.in;
+    if (!kind || !UI.dialog) return;
+    const val = el.type === "checkbox" ? el.checked : el.value;
+    if (kind === "svc") { UI.dialog.rows[Number(el.dataset.i)][el.dataset.k] = val; return; }
+    UI.dialog[el.dataset.k] = val;
+    if (UI.dialog.type === "pay" && el.id === "pay-amt") {
+      const due = paymentState(cartTotals().total, UI.dialog.payments).due; const amt = toCents(val);
+      const go = document.getElementById("pay-go"); if (go) go.disabled = !(amt > 0);
+      const chg = document.getElementById("chg"); if (chg) { chg.hidden = !(amt > due); chg.textContent = "Change " + m(Math.max(0, amt - due)); }
+    }
+  });
+  document.addEventListener("change", (ev) => { if (ev.target.dataset.in === "svc" && ev.target.type === "checkbox") UI.dialog.rows[Number(ev.target.dataset.i)].fixed = ev.target.checked; });
+  document.addEventListener("keydown", (ev) => {
+    if (ev.key === "Escape" && UI.dialog) return A.close();
+    if (ev.key !== "Enter" || !UI.dialog || ev.target.tagName !== "INPUT" || ev.target.type === "checkbox") return;
+    const go = { custom: "custom-add", disc: "disc-apply", pay: "pay-add", "edit-svc": "svc-save" }[UI.dialog.type];
+    if (go) { ev.preventDefault(); A[go](); }
+  });
+
+  // Keep the tablet screen on while the register is open.
+  let lock = null;
+  async function keepAwake() {
+    if (lock || !navigator.wakeLock) return;
+    try { lock = await navigator.wakeLock.request("screen"); lock.addEventListener("release", () => { lock = null; }); } catch {}
+  }
+  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") keepAwake(); });
+
+  let toastTimer;
+  function toast(msg, bad) {
+    let t = document.querySelector(".toast");
+    if (!t) { t = document.createElement("div"); document.body.appendChild(t); }
+    t.className = "toast" + (bad ? " bad" : ""); t.setAttribute("role", "status"); t.textContent = msg;
+    clearTimeout(toastTimer); toastTimer = setTimeout(() => t.remove(), bad ? 6000 : 3200);
+  }
+  function tick() { const c = document.getElementById("clock"); if (c) c.textContent = new Date().toLocaleString([], { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }); }
+
+  tick(); setInterval(tick, 20000);
+  render();
+  connect();
+  checkUpdate(); setInterval(checkUpdate, 4 * 60 * 60 * 1000);
+})();
+</script>
+
+</body></html>

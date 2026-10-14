@@ -1,0 +1,6 @@
+node_modules/
+pos/dist/
+tablet/android/
+tablet/ios/
+*.jks
+*.keystore
