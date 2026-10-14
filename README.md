@@ -12,9 +12,9 @@ Neither download contains a register key. Each device is given its key once duri
 
 ## Publishing a new version
 
-Run the **Build and release** workflow (Actions tab → Build and release → Run workflow) with the new
-version number, or push a tag like `v1.0.1`. It builds both apps and publishes them as one release;
-the devices pick it up from there.
+Change the number in the `VERSION` file on `main` (for example `1.0.0` → `1.0.1`). That starts the
+**Build and release** workflow, which builds both apps and publishes them as one release; the
+devices pick it up from there. The number must go up each time.
 
 ## Signing
 

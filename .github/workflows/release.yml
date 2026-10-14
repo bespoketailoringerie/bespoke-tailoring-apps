@@ -1,26 +1,38 @@
 # Builds both apps and publishes them as one GitHub release.
-# Start it by pushing a version tag, e.g.  git tag v1.0.1 && git push origin v1.0.1
-# The POS checks this repo's latest release for updates; so does the tablet.
+# To publish a new version, change the number in the VERSION file on main (e.g. 1.0.1).
+# It can also be run by hand from the Actions tab. The POS and the tablet check this repo's
+# latest release for updates.
 name: Build and release
 on:
   push:
-    tags: ["v*.*.*"]
+    branches: [main]
+    paths: [VERSION]
   workflow_dispatch:
-    inputs:
-      version:
-        description: "Version to build, like 1.0.1 (makes the tag)"
-        required: true
 
 permissions:
   contents: write
 
-env:
-  VERSION: ${{ github.event.inputs.version || github.ref_name }}
-
 jobs:
+  version:
+    name: Read version
+    runs-on: ubuntu-latest
+    outputs:
+      v: ${{ steps.v.outputs.v }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: v
+        run: |
+          V="$(tr -d ' \r\n' < VERSION)"
+          [[ "$V" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "VERSION must look like 1.2.3, got '$V'"; exit 1; }
+          if git ls-remote --exit-code --tags origin "refs/tags/v$V" >/dev/null; then echo "Version $V is already published. Raise the number in VERSION."; exit 1; fi
+          echo "v=$V" >> "$GITHUB_OUTPUT"
+
   pos:
     name: POS (Windows installer)
+    needs: version
     runs-on: windows-latest
+    env:
+      VERSION: ${{ needs.version.outputs.v }}
     defaults:
       run:
         working-directory: pos
@@ -46,7 +58,10 @@ jobs:
 
   tablet:
     name: Tablet (Android APK)
+    needs: version
     runs-on: ubuntu-latest
+    env:
+      VERSION: ${{ needs.version.outputs.v }}
     defaults:
       run:
         working-directory: tablet
@@ -103,8 +118,10 @@ jobs:
 
   release:
     name: Publish release
-    needs: [pos, tablet]
+    needs: [version, pos, tablet]
     runs-on: ubuntu-latest
+    env:
+      VERSION: ${{ needs.version.outputs.v }}
     steps:
       - uses: actions/download-artifact@v4
         with:
@@ -113,7 +130,8 @@ jobs:
       - run: ls -la out
       - uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ startsWith(env.VERSION, 'v') && env.VERSION || format('v{0}', env.VERSION) }}
+          tag_name: v${{ env.VERSION }}
+          target_commitish: ${{ github.sha }}
           name: Bespoke Register ${{ env.VERSION }}
           make_latest: true
           body: |
