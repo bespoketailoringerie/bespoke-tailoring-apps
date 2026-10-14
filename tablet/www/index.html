@@ -262,6 +262,13 @@ label.f > span, .label { font-family: var(--f-mono); font-weight: 700; font-size
 .due-tag.late { color: var(--red); }
 .qbadge { display: inline-block; min-width: 20px; margin-left: 8px; padding: 0 6px; background: var(--gold); color: var(--ink); font-size: 12px; line-height: 1.6; letter-spacing: 0; text-align: center; }
 
+.tprice { font-family: var(--f-mono); font-weight: 700; font-size: 12.5px; color: var(--brown); margin-left: 4px; white-space: nowrap; }
+.trow.on .tprice { color: var(--red); }
+.tsec-toggle { display: flex; align-items: center; justify-content: space-between; width: 100%; border: 0; border-bottom: 2px solid var(--ink); background: none; padding: 6px 0 2px; cursor: pointer; color: var(--ink); min-height: 48px; }
+.tsec-toggle h3 { border: 0; padding: 0; margin: 0; }
+.tsec-toggle > span { font-family: var(--f-mono); font-weight: 700; font-size: 26px; color: var(--red); }
+.tused { display: inline-block; min-width: 24px; padding: 0 6px; background: var(--red); color: var(--bg); font-family: var(--f-mono); font-size: 13px; letter-spacing: 0; vertical-align: middle; text-align: center; }
+
 /* Tags tab */
 .board { display: grid; gap: 22px; }
 .board .grp { display: grid; gap: 10px; }
@@ -374,26 +381,58 @@ label.f > span, .label { font-family: var(--f-mono); font-weight: 700; font-size
 
   // The alteration tag, laid out like the shop's paper tags. Each line can be ticked, given a
   // measurement, and multiplied when more than one piece needs the same work.
+  // Prices come from the shop's price menu. A number is the price in dollars; [low, high] is a range
+  // that's set at the register for each job; null means it isn't on the menu yet.
+  // Coat, Vest and Trousers follow the paper tag and are always open; the others open when needed.
   const TAG = [
-    { id: "coat", title: "Coat", rows: [
-      ["shorten-sleeves", "Shorten Sleeves"], ["lengthen-sleeves", "Lengthen Sleeves"],
-      ["raise-collar", "Raise Collar"], ["lower-collar", "Lower Collar"],
-      ["pad-shoulders", "Pad Shoulders"], ["move-buttons", "Move Buttons"],
-      ["shorten-coat", "Shorten Coat"],
-      ["take-in-sides", "Take in Sides"], ["let-out-sides", "Let out Sides"],
+    { id: "coat", title: "Coat", prefix: "Coat", paper: true, rows: [
+      ["shorten-sleeves", "Shorten Sleeves", 35], ["lengthen-sleeves", "Lengthen Sleeves", 35],
+      ["raise-collar", "Raise Collar", 35], ["lower-collar", "Lower Collar", 35],
+      ["pad-shoulders", "Pad Shoulders", 80], ["move-buttons", "Move Buttons", null],
+      ["shorten-coat", "Shorten Coat", 80],
+      ["take-in-sides", "Take in Sides", 30], ["let-out-sides", "Let out Sides", 30],
+      ["taper-sleeves", "Taper Sleeves", 30], ["replace-lining", "Replace Lining", 90, "plus the cost of the lining"],
     ] },
-    { id: "vest", title: "Vest", rows: [["vest-chest", "Chest"], ["vest-waist", "Waist"]] },
-    { id: "trousers", title: "Trousers", rows: [
-      ["tr-waist", "Waist"], ["tr-thigh", "Thigh"],
-      ["tr-length", "Length"], ["tr-knee", "Knee"],
-      ["tr-bottom", "Bottom"], ["tr-pin-hem", "Pin. Hem"],
-      ["tr-cuffs", "With Cuffs"], ["tr-no-cuffs", "Without Cuffs"],
+    { id: "vest", title: "Vest", prefix: "Vest", paper: true, rows: [["vest-chest", "Chest", null], ["vest-waist", "Waist", null]] },
+    { id: "trousers", title: "Trousers", prefix: "Trousers", paper: true, rows: [
+      ["tr-waist", "Waist", 25], ["tr-thigh", "Thigh", null],
+      ["tr-length", "Length", 15], ["tr-knee", "Knee", null],
+      ["tr-bottom", "Bottom", null], ["tr-pin-hem", "Pin. Hem", null],
+      ["tr-cuffs", "With Cuffs", 20], ["tr-no-cuffs", "Without Cuffs", null],
+      ["tr-rolled-hem", "Rolled Hem", 20], ["tr-crotch", "Crotch", 25],
+      ["tr-taper", "Taper", 25],
+    ] },
+    { id: "jeans", title: "Jeans", prefix: "Jeans", rows: [
+      ["jn-original-hem", "Original Hem", 25], ["jn-plain-hem", "Plain Hem", 20],
+      ["jn-taper", "Taper", 40], ["jn-waist", "Waist", 40],
+    ] },
+    { id: "shirts", title: "Shirts", prefix: "Shirt", rows: [
+      ["sh-sleeves", "Sleeves", 35], ["sh-dart", "Dart", 20],
+      ["sh-sides", "Sides", 30], ["sh-hem", "Hem", 30],
+    ] },
+    { id: "dresses", title: "Dresses & Skirts", prefix: "Dress", rows: [
+      ["dr-sides", "Sides", 40], ["dr-sleeves", "Sleeves", 35],
+      ["dr-fix-beading", "Fix Beading", [40, 200], "depends on the damage"], ["dr-add-cups", "Add Cups", 35],
+      ["dr-corset-back", "Make Corset Back", 80], ["dr-add-slit", "Add Slit", 40],
+      ["dr-tack", "Tack Bust or Slit", [25, 40]],
+      ["dr-shoulders", "Shoulders", 40], ["dr-spaghetti", "Spaghetti Strap Shoulders", 25],
+      ["dr-rolled-hem", "Rolled Hem (per layer)", 40], ["dr-tulle-hem", "Cut Tulle Hem (per layer)", 30],
+    ] },
+    { id: "patches", title: "Patches", prefix: "Patch", rows: [
+      ["pt-small", "Small Patch", 10], ["pt-big", "Big Patch", 12], ["pt-letterman", "Letterman", 25],
     ] },
   ];
+  // Rush fees, added to the total (pant hems excepted). The current day doesn't count as a working day.
+  const RUSH = [[4, "4 working days", 20], [3, "3 working days", 30], [2, "2 working days", 40], [1, "Tomorrow (1 working day)", 50]];
   const TAG_ROW = {};
-  for (const sec of TAG) for (const [k, label] of sec.rows) TAG_ROW[k] = { section: sec.title, label };
-  const itemName = (k) => (TAG_ROW[k] ? `${TAG_ROW[k].section}: ${TAG_ROW[k].label}` : k);
+  for (const sec of TAG) for (const [k, label, price, note] of sec.rows) TAG_ROW[k] = { section: sec.title, prefix: sec.prefix, label, price, note };
+  const itemName = (k) => (TAG_ROW[k] ? `${TAG_ROW[k].prefix}: ${TAG_ROW[k].label}` : k);
+  const listPrice = (k) => { const r = TAG_ROW[k]; return r && typeof r.price === "number" ? r.price * 100 : 0; };
+  const priceText = (k) => { const r = TAG_ROW[k]; if (!r || r.price == null) return ""; return Array.isArray(r.price) ? `$${r.price[0]}–${r.price[1]}` : `$${r.price}`; };
+  // The price a line rings up at: one saved at the register wins, then the price menu.
+  const priceFor = (k) => settings.tagPrices[k] || listPrice(k);
   const tagNo = (t) => `#${t.no}`;
+  const rushOf = (t) => RUSH.find(([n]) => n === t.rush) || null;
   const custName = (c) => (c && (c.name || c.phone || c.email)) || "Customer";
   const phoneDigits = (v) => { const d = String(v ?? "").replace(/\D/g, ""); return d.length === 11 && d[0] === "1" ? d.slice(1) : d; };
   const cleanEmail = (v) => { const e = String(v ?? "").trim().toLowerCase(); return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e) ? e : ""; };
@@ -615,7 +654,7 @@ label.f > span, .label { font-family: var(--f-mono); font-weight: 700; font-size
       <div class="lines">
         ${UI.cart.length ? UI.cart.map((l, i) => {
           const gross = l.price * l.qty; const off = discountOf(gross, l.disc);
-          const kind = l.tagId ? `Tag #${l.tagNo}${l.measure ? " · " + esc(l.measure) : ""}` : l.fixed ? "Made to measure" : "Service";
+          const kind = l.tagId ? `Tag #${l.tagNo}${l.measure ? " · " + esc(l.measure) : ""}${l.note ? " · " + esc(l.note) : ""}${l.range && !l.price ? " · menu " + esc(l.range) : ""}` : l.fixed ? "Made to measure" : "Service";
           return `<div class="line"><div class="what"><b>${esc(l.name)}</b>
               <div class="opts">${kind}${l.qty > 1 && l.price ? ` · ${m(l.price)} each` : ""}${l.disc && l.disc.value ? ` · <span class="pill plain">${esc(discLabel(l.disc))}</span>` : ""}${l.tagId && !l.price ? ` · <span class="pill bad">Price needed</span>` : ""}</div></div>
             <div class="amt">${l.tagId ? `<button class="price-btn" data-act="line-price" data-i="${i}" aria-label="Set the price for ${esc(l.name)}">${off ? `<s>${m(gross)}</s>` : ""}${l.price ? m(gross - off) : "Set price"}</button>` : `${off ? `<s>${m(gross)}</s>` : ""}${m(gross - off)}`}</div>
@@ -709,7 +748,7 @@ label.f > span, .label { font-family: var(--f-mono); font-weight: 700; font-size
     return `<div class="tagcard ${t.status === "closed" ? "closed" : ""} ${isLate(t) ? "late" : ""}"><div class="in">
         ${showWho ? `<button class="whom" data-act="tag-who" data-id="${esc(t.customerId)}">${esc(custName(c))}</button>` : ""}
         <div class="top"><b>Tag ${tagNo(t)}</b><span class="pill ${cls}">${label}</span>
-          ${t.status !== "closed" ? `<span class="due-tag ${isLate(t) ? "late" : ""}">${esc(dueText(t))}</span>` : ""}
+          ${t.status !== "closed" ? `<span class="due-tag ${isLate(t) ? "late" : ""}">${esc(dueText(t))}${t.rush ? " · RUSH" : ""}</span>` : ""}
           <span class="muted small">Opened ${fmt(t.opened)}${t.status === "closed" && t.closedAt ? ` · paid ${fmt(t.closedAt)}` : ""}</span>
           ${t.status === "closed" ? `<span class="money" style="margin-left:auto;font-weight:700">${m(t.total || 0)}</span>` : ""}</div>
         <div class="items">${lines.length ? lines.map((l) => esc(`${l.qty > 1 ? l.qty + " × " : ""}${l.name}${l.measure ? " " + l.measure : ""}`)).join(" · ") : '<span class="muted">Nothing ticked yet</span>'}</div>
@@ -820,6 +859,7 @@ label.f > span, .label { font-family: var(--f-mono); font-weight: 700; font-size
         <div class="pad-wrap">
           <div style="display:grid;gap:14px">
             <div style="display:grid;gap:6px"><span class="label">Price each</span><div class="amtbox" id="amtbox">${m(padCents(d))}</div></div>
+            ${l.range ? `<p class="small" style="margin:0">Price menu: <b>${esc(l.range)}</b>${l.note ? `, ${esc(l.note)}` : ""}.</p>` : l.note ? `<p class="small" style="margin:0">${esc(l.note)}</p>` : ""}
             ${l.qty > 1 ? `<p class="muted small" style="margin:0">${l.qty} pieces on this tag, so the line comes to <b id="price-x">${m(padCents(d) * l.qty)}</b>.</p>` : ""}
             ${l.tagKey ? `<label class="row small" style="gap:10px"><input type="checkbox" id="pr-keep" data-in="dlg" data-k="keep" ${d.keep ? "checked" : ""} style="width:22px;height:22px;accent-color:var(--red)"> Use this price every time for ${esc(l.name)}</label>` : ""}
           </div>
@@ -853,9 +893,9 @@ label.f > span, .label { font-family: var(--f-mono); font-weight: 700; font-size
     const t = d.tag; const c = customers.find((x) => x.id === t.customerId);
     const ro = d.readOnly;
     const row = (k, label) => {
-      const r = t.items[k] || {}; const on = !!r.on;
+      const r = t.items[k] || {}; const on = !!r.on; const pt = priceText(k);
       return `<div class="trow ${on ? "on" : ""}" id="tr-${k}">
-        <button class="tick" data-act="tag-tick" data-k="${k}" aria-pressed="${on}" ${ro ? "disabled" : ""}><i></i><span>${esc(label)}</span></button>
+        <button class="tick" data-act="tag-tick" data-k="${k}" aria-pressed="${on}" ${ro ? "disabled" : ""}><i></i><span>${esc(label)}${pt ? ` <small class="tprice">${pt}</small>` : ""}</span></button>
         <input type="text" id="tm-${k}" value="${esc(r.measure || "")}" data-in="tagm" data-k="${k}" placeholder="Amount" aria-label="${esc(label)} amount" autocomplete="off" ${ro ? "readonly" : ""}>
         <span class="qty" aria-label="How many"><button data-act="tag-qty" data-k="${k}" data-d="-1" aria-label="One fewer" ${ro ? "disabled" : ""}>−</button><span id="tq-${k}">×${Math.max(1, r.qty || 1)}</span><button data-act="tag-qty" data-k="${k}" data-d="1" aria-label="One more" ${ro ? "disabled" : ""}>+</button></span>
       </div>`;
@@ -866,11 +906,18 @@ label.f > span, .label { font-family: var(--f-mono); font-weight: 700; font-size
         <span class="qty"><button data-act="tago-qty" data-i="${i}" data-d="-1" aria-label="One fewer" ${ro ? "disabled" : ""}>−</button><span id="toq-${i}">×${Math.max(1, o.qty || 1)}</span><button data-act="tago-qty" data-i="${i}" data-d="1" aria-label="One more" ${ro ? "disabled" : ""}>+</button></span>
         ${ro ? "" : `<button class="btn small ghost" data-act="tago-del" data-i="${i}" aria-label="Remove this line">✕</button>`}
       </div>`).join("");
-    return `<div class="thead"><h2>${esc(custName(c))}</h2><span class="num">Tag ${tagNo(t)}</span>
+    return `<div class="thead"><h2>${esc(custName(c))}</h2><span class="num">${t.no ? "Tag " + tagNo(t) : "New tag"}</span>
         <span class="muted small">Opened ${new Date(t.opened).toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" })}</span></div>
       <div class="tdue" id="tdue">${dueHtml(d)}</div>
-      ${TAG.map((sec) => `<div class="tsec"><h3>${sec.title}</h3><div class="trows">${sec.rows.map(([k, l]) => row(k, l)).join("")}</div>
-        ${sec.id === "coat" ? "" : ""}</div>`).join("")}
+      ${TAG.map((sec) => {
+        const used = sec.rows.filter(([k]) => t.items[k] && t.items[k].on).length;
+        const open = sec.paper || used || (d.open && d.open[sec.id]);
+        if (ro && !sec.paper && !used) return "";
+        return `<div class="tsec">${sec.paper
+          ? `<h3>${sec.title}</h3>`
+          : `<button class="tsec-toggle" data-act="tsec" data-s="${sec.id}" aria-expanded="${!!open}"><h3>${sec.title}${used ? ` <span class="tused">${used}</span>` : ""}</h3><span aria-hidden="true">${open ? "−" : "+"}</span></button>`}
+          ${open ? `<div class="trows">${sec.rows.map(([k, l]) => row(k, l)).join("")}</div>` : ""}</div>`;
+      }).join("")}
       <div class="tsec"><h3>Other</h3><div style="display:grid">${others || (ro ? `<p class="muted small" style="margin:8px 0">None</p>` : "")}</div>
         ${ro ? "" : `<button class="btn small" data-act="tago-add" style="justify-self:start;margin-top:8px">+ Add another alteration</button>`}</div>
       <label class="f"><span style="color:var(--ink)">Notes</span><textarea class="tnotes" id="tag-notes" data-in="tagn" ${ro ? "readonly" : ""} placeholder="Fabric, fit notes, pickup date…">${esc(t.notes || "")}</textarea></label>
@@ -882,12 +929,16 @@ label.f > span, .label { font-family: var(--f-mono); font-weight: 700; font-size
 
   function dueHtml(d) {
     const t = d.tag;
-    if (d.readOnly) return `<span class="label" style="color:var(--ink)">Due</span><span>${esc(t.due ? new Date(t.due + "T12:00").toLocaleDateString([], { weekday: "long", month: "long", day: "numeric", year: "numeric" }) : "No due date")}</span>`;
+    if (d.readOnly) return `<span class="label" style="color:var(--ink)">Due</span><span>${esc(t.due ? new Date(t.due + "T12:00").toLocaleDateString([], { weekday: "long", month: "long", day: "numeric", year: "numeric" }) : "No due date")}${t.rush ? " · Rush, " + esc(rushOf(t)[1]) : ""}</span>`;
     const quick = [["Tomorrow", 1], ["In 3 days", 3], ["In 1 week", 7], ["In 2 weeks", 14]];
     return `<span class="label" style="color:var(--ink)">Due date</span>
       <div class="row"><input type="date" id="tag-due" value="${esc(t.due || "")}" data-in="tagdue" aria-label="Due date">
         ${quick.map(([l, n]) => `<button class="chip" data-act="due-quick" data-n="${n}" aria-pressed="${t.due === dayPlus(n)}">${l}</button>`).join("")}
-        <button class="chip" data-act="due-none" aria-pressed="${!!t.noDue && !t.due}">No due date</button></div>`;
+        <button class="chip" data-act="due-none" aria-pressed="${!!t.noDue && !t.due}">No due date</button></div>
+      <span class="label" style="color:var(--ink);margin-top:4px">Rush</span>
+      <div class="row"><button class="chip" data-act="rush" data-n="0" aria-pressed="${!t.rush}">No rush</button>
+        ${RUSH.map(([n, l, fee]) => `<button class="chip" data-act="rush" data-n="${n}" aria-pressed="${t.rush === n}">${l} +$${fee}</button>`).join("")}</div>
+      <span class="small muted">Rush fees don't apply to pant hems. Today doesn't count as a working day.</span>`;
   }
 
   function payHtml(d) {
@@ -1039,6 +1090,8 @@ label.f > span, .label { font-family: var(--f-mono); font-weight: 700; font-size
     "tag-discard": () => { UI.dialog = null; render(); },
     "tag-who": (el) => { UI.custSel = el.dataset.id; UI.view = "customers"; render(); },
     "due-quick": (el) => { const t = UI.dialog.tag; t.due = dayPlus(Number(el.dataset.n)); t.noDue = false; refreshDue(); },
+    "tsec": (el) => { const d = UI.dialog; d.open = d.open || {}; d.open[el.dataset.s] = !(el.getAttribute("aria-expanded") === "true"); renderDialog(); const b = document.querySelector(`[data-act="tsec"][data-s="${el.dataset.s}"]`); if (b) b.scrollIntoView({ block: "start", behavior: "smooth" }); },
+    "rush": (el) => { const t = UI.dialog.tag; t.rush = Number(el.dataset.n) || 0; refreshDue(); },
     "due-none": () => { const t = UI.dialog.tag; t.due = null; t.noDue = true; refreshDue(); },
     "tag-delete": () => {
       const id = UI.dialog.tag.id; const t = tags.find((x) => x.id === id);
@@ -1048,7 +1101,7 @@ label.f > span, .label { font-family: var(--f-mono); font-weight: 700; font-size
     },
     "line-price": (el) => {
       const i = Number(el.dataset.i); const l = UI.cart[i];
-      UI.dialog = { type: "price", i, digits: l.price ? String(l.price) : "", keep: !!l.tagKey };
+      UI.dialog = { type: "price", i, digits: l.price ? String(l.price) : "", keep: !!l.tagKey && !l.range };
       renderDialog();
     },
     "price-set": async () => {
@@ -1129,7 +1182,9 @@ label.f > span, .label { font-family: var(--f-mono); font-weight: 700; font-size
     if (UI.cart.length && !(UI.cartCustomer && UI.cartCustomer.id === t.customerId)) { UI.view = "register"; render(); return toast("Finish or clear the sale that's on the register first.", true); }
     if (UI.cart.some((l) => l.tagId === t.id)) { UI.view = "register"; render(); return; }
     const c = customers.find((x) => x.id === t.customerId);
-    for (const l of lines) UI.cart.push({ key: uid(), name: l.name, measure: l.measure, qty: l.qty, price: settings.tagPrices[l.key] || 0, disc: null, tagId: t.id, tagNo: t.no, tagKey: l.key.startsWith("other:") ? "" : l.key });
+    for (const l of lines) UI.cart.push({ key: uid(), name: l.name, measure: l.measure, qty: l.qty, price: priceFor(l.key), disc: null, tagId: t.id, tagNo: t.no, tagKey: l.key.startsWith("other:") ? "" : l.key, range: TAG_ROW[l.key] && Array.isArray(TAG_ROW[l.key].price) ? priceText(l.key) : "", note: TAG_ROW[l.key] && TAG_ROW[l.key].note ? TAG_ROW[l.key].note : "" });
+    const rush = rushOf(t);
+    if (rush) UI.cart.push({ key: uid(), name: `Rush: ${rush[1]}`, measure: "", qty: 1, price: rush[2] * 100, disc: null, tagId: t.id, tagNo: t.no, tagKey: "", rush: true });
     UI.cartCustomer = c ? { id: c.id, name: c.name, phone: c.phone, email: c.email } : null;
     t.status = "register"; saveDoc("tags", t);
     UI.view = "register"; render();
@@ -1197,7 +1252,7 @@ label.f > span, .label { font-family: var(--f-mono); font-weight: 700; font-size
     if (kind === "tagdue") {
       const t = UI.dialog.tag; t.due = /^\d{4}-\d{2}-\d{2}$/.test(el.value) ? el.value : null; if (t.due) t.noDue = false;
       const b = document.getElementById("tdue");
-      if (b) { b.classList.remove("missing"); b.querySelectorAll(".chip").forEach((c) => c.setAttribute("aria-pressed", c.dataset.act === "due-quick" ? String(t.due === dayPlus(Number(c.dataset.n))) : String(!t.due && !!t.noDue))); }
+      if (b) { b.classList.remove("missing"); b.querySelectorAll('[data-act^="due-"]').forEach((c) => c.setAttribute("aria-pressed", c.dataset.act === "due-quick" ? String(t.due === dayPlus(Number(c.dataset.n))) : String(!t.due && !!t.noDue))); }
       return;
     }
     const val = el.type === "checkbox" ? el.checked : el.value;
