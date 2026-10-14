@@ -74,7 +74,10 @@ jobs:
         with:
           distribution: temurin
           java-version: 17
-      - uses: android-actions/setup-android@v3
+      - name: Android tools (already on GitHub's Linux machines)
+        run: |
+          echo "ANDROID_HOME=${ANDROID_HOME:-$ANDROID_SDK_ROOT}" >> "$GITHUB_ENV"
+          ls "${ANDROID_HOME:-$ANDROID_SDK_ROOT}/build-tools" | sort -V | tail -3
       - name: Set version
         run: |
           V="${VERSION#v}"
