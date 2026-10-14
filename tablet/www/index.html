@@ -276,6 +276,10 @@ label.f > span, .label { font-family: var(--f-mono); font-weight: 700; font-size
 .spentrow { display: flex; gap: 8px 18px; flex-wrap: wrap; font-family: var(--f-mono); font-size: 14px; }
 .spentrow b { color: var(--red); }
 
+.ttotal { border-top: 3px double var(--ink); padding-top: 10px; display: grid; gap: 4px; }
+.ttotal-row { display: flex; justify-content: space-between; align-items: baseline; font-family: var(--f-display); font-size: 28px; color: var(--ink); }
+.ttotal-row .money { font-family: var(--f-mono); font-weight: 700; font-size: 28px; color: var(--red); }
+
 /* Tags tab */
 .board { display: grid; gap: 22px; }
 .board .grp { display: grid; gap: 10px; }
@@ -442,6 +446,23 @@ label.f > span, .label { font-family: var(--f-mono); font-weight: 700; font-size
   const priceFor = (k) => settings.tagPrices[k] || listPrice(k);
   const tagNo = (t) => `#${t.no}`;
   const rushOf = (t) => RUSH.find(([n]) => n === t.rush) || null;
+  // What the tag comes to at menu (or saved) prices. Lines without a set price are listed instead.
+  function tagTotal(t) {
+    let sum = 0; const unset = [];
+    for (const l of tagLines(t)) {
+      const p = l.key.startsWith("other:") ? 0 : priceFor(l.key);
+      if (p) sum += p * l.qty;
+      else unset.push(l.name + (priceText(l.key) ? ` (${priceText(l.key)})` : ""));
+    }
+    const rush = rushOf(t); if (rush) sum += rush[2] * 100;
+    return { sum, unset };
+  }
+  function tagTotalHtml(t) {
+    const { sum, unset } = tagTotal(t);
+    return `<div class="ttotal-row"><span>Total</span><span class="money">${m(sum)}</span></div>
+      ${unset.length ? `<div class="small muted">Plus ${unset.length === 1 ? "a price" : "prices"} to set at the register: ${esc(unset.join(", "))}</div>` : ""}`;
+  }
+  const refreshTotal = () => { const b = document.getElementById("ttotal"); if (b && UI.dialog && UI.dialog.tag) b.innerHTML = tagTotalHtml(UI.dialog.tag); };
   const custName = (c) => (c && (c.name || c.phone || c.email)) || "Customer";
   const phoneDigits = (v) => { const d = String(v ?? "").replace(/\D/g, ""); return d.length === 11 && d[0] === "1" ? d.slice(1) : d; };
   const cleanEmail = (v) => { const e = String(v ?? "").trim().toLowerCase(); return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e) ? e : ""; };
@@ -798,7 +819,7 @@ label.f > span, .label { font-family: var(--f-mono); font-weight: 700; font-size
         <div class="top"><b>Tag ${tagNo(t)}</b><span class="pill ${cls}">${label}</span>
           ${t.status !== "closed" ? `<span class="due-tag ${isLate(t) ? "late" : ""}">${esc(dueText(t))}${t.rush ? " · RUSH" : ""}</span>` : ""}
           <span class="muted small">Opened ${fmt(t.opened)}${t.status === "closed" && t.closedAt ? ` · paid ${fmt(t.closedAt)}` : ""}</span>
-          ${t.status === "closed" ? `<span class="money" style="margin-left:auto;font-weight:700">${m(t.total || 0)}</span>` : ""}</div>
+          <span class="money" style="margin-left:auto;font-weight:700">${t.status === "closed" ? m(t.total || 0) : m(tagTotal(t).sum) + (tagTotal(t).unset.length ? "+" : "")}</span></div>
         <div class="items">${lines.length ? lines.map((l) => esc(`${l.qty > 1 ? l.qty + " × " : ""}${l.name}${l.measure ? " " + l.measure : ""}`)).join(" · ") : '<span class="muted">Nothing ticked yet</span>'}</div>
         ${t.notes ? `<div class="small muted" style="white-space:pre-wrap">${esc(t.notes)}</div>` : ""}
         <div class="row">${t.status === "closed"
@@ -981,6 +1002,7 @@ label.f > span, .label { font-family: var(--f-mono); font-weight: 700; font-size
       <div class="tsec"><h3>Other</h3><div style="display:grid">${others || (ro ? `<p class="muted small" style="margin:8px 0">None</p>` : "")}</div>
         ${ro ? "" : `<button class="btn small" data-act="tago-add" style="justify-self:start;margin-top:8px">+ Add another alteration</button>`}</div>
       <label class="f"><span style="color:var(--ink)">Notes</span><textarea class="tnotes" id="tag-notes" data-in="tagn" ${ro ? "readonly" : ""} placeholder="Fabric, fit notes, pickup date…">${esc(t.notes || "")}</textarea></label>
+      <div class="ttotal" id="ttotal">${tagTotalHtml(t)}</div>
       <div class="foot">${ro
         ? `<button class="btn primary" data-act="close">Close</button>`
         : `${d.isNew ? `<button class="btn ghost left" data-act="tag-discard">Discard tag</button>` : `<button class="btn ghost left" data-act="tag-delete">Delete tag</button>`}
@@ -1133,17 +1155,17 @@ label.f > span, .label { font-family: var(--f-mono); font-weight: 700; font-size
     "tag-tick": (el) => {
       const k = el.dataset.k; const t = UI.dialog.tag; const r = t.items[k] = t.items[k] || { on: false, measure: "", qty: 1 };
       r.on = !r.on; const rowEl = document.getElementById("tr-" + k);
-      if (rowEl) rowEl.classList.toggle("on", r.on); el.setAttribute("aria-pressed", String(r.on));
+      if (rowEl) rowEl.classList.toggle("on", r.on); el.setAttribute("aria-pressed", String(r.on)); refreshTotal();
     },
     "tag-qty": (el) => {
       const k = el.dataset.k; const t = UI.dialog.tag; const r = t.items[k] = t.items[k] || { on: false, measure: "", qty: 1 };
       r.qty = Math.max(1, Math.min(99, (r.qty || 1) + Number(el.dataset.d)));
       if (Number(el.dataset.d) > 0 && !r.on) { r.on = true; const rowEl = document.getElementById("tr-" + k); if (rowEl) rowEl.classList.add("on"); }
-      const q = document.getElementById("tq-" + k); if (q) q.textContent = "×" + r.qty;
+      const q = document.getElementById("tq-" + k); if (q) q.textContent = "×" + r.qty; refreshTotal();
     },
     "tago-add": () => { const t = UI.dialog.tag; t.others = t.others || []; t.others.push({ label: "", measure: "", qty: 1 }); renderDialog(); const i = document.getElementById(`to-l-${t.others.length - 1}`); if (i) i.focus(); },
     "tago-del": (el) => { UI.dialog.tag.others.splice(Number(el.dataset.i), 1); renderDialog(); },
-    "tago-qty": (el) => { const o = UI.dialog.tag.others[Number(el.dataset.i)]; o.qty = Math.max(1, Math.min(99, (o.qty || 1) + Number(el.dataset.d))); const q = document.getElementById("toq-" + el.dataset.i); if (q) q.textContent = "×" + o.qty; },
+    "tago-qty": (el) => { const o = UI.dialog.tag.others[Number(el.dataset.i)]; o.qty = Math.max(1, Math.min(99, (o.qty || 1) + Number(el.dataset.d))); const q = document.getElementById("toq-" + el.dataset.i); if (q) q.textContent = "×" + o.qty; refreshTotal(); },
     "tag-save": async () => { const t = await storeTag(); if (!t) return; UI.dialog = null; render(); toast(`Tag ${tagNo(t)} saved.`); },
     "tag-save-close": async () => { const t = await storeTag(); if (!t) return; UI.dialog = null; closeTag(t); },
     "tag-close": (el) => { const t = tags.find((x) => x.id === el.dataset.id); if (t) closeTag(t); },
@@ -1166,7 +1188,7 @@ label.f > span, .label { font-family: var(--f-mono); font-weight: 700; font-size
     "tag-who": (el) => { UI.custSel = el.dataset.id; UI.view = "customers"; render(); },
     "due-quick": (el) => { const t = UI.dialog.tag; t.due = dayPlus(Number(el.dataset.n)); t.noDue = false; refreshDue(); },
     "tsec": (el) => { const d = UI.dialog; d.open = d.open || {}; d.open[el.dataset.s] = !(el.getAttribute("aria-expanded") === "true"); renderDialog(); const b = document.querySelector(`[data-act="tsec"][data-s="${el.dataset.s}"]`); if (b) b.scrollIntoView({ block: "start", behavior: "smooth" }); },
-    "rush": (el) => { const t = UI.dialog.tag; t.rush = Number(el.dataset.n) || 0; refreshDue(); },
+    "rush": (el) => { const t = UI.dialog.tag; t.rush = Number(el.dataset.n) || 0; refreshDue(); refreshTotal(); },
     "due-none": () => { const t = UI.dialog.tag; t.due = null; t.noDue = true; refreshDue(); },
     "tag-delete": () => {
       const id = UI.dialog.tag.id; const t = tags.find((x) => x.id === id);
@@ -1321,10 +1343,10 @@ label.f > span, .label { font-family: var(--f-mono); font-weight: 700; font-size
     if (kind === "tagm") {
       const k = el.dataset.k; const r = UI.dialog.tag.items[k] = UI.dialog.tag.items[k] || { on: false, measure: "", qty: 1 };
       r.measure = el.value;
-      if (el.value.trim() && !r.on) { r.on = true; const rowEl = document.getElementById("tr-" + k); if (rowEl) rowEl.classList.add("on"); }
+      if (el.value.trim() && !r.on) { r.on = true; const rowEl = document.getElementById("tr-" + k); if (rowEl) rowEl.classList.add("on"); refreshTotal(); }
       return;
     }
-    if (kind === "tago") { UI.dialog.tag.others[Number(el.dataset.i)][el.dataset.k] = el.value; return; }
+    if (kind === "tago") { UI.dialog.tag.others[Number(el.dataset.i)][el.dataset.k] = el.value; if (el.dataset.k === "label") refreshTotal(); return; }
     if (kind === "tagn") { UI.dialog.tag.notes = el.value; return; }
     if (kind === "tagdue") {
       const t = UI.dialog.tag; t.due = /^\d{4}-\d{2}-\d{2}$/.test(el.value) ? el.value : null; if (t.due) t.noDue = false;
