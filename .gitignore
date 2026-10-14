@@ -5,3 +5,5 @@ tablet/ios/
 *.jks
 *.keystore
 *.woff2
+pos/app/customer-sync.js
+tablet/www/customer-sync.js

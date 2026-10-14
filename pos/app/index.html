@@ -312,6 +312,7 @@ table.mkup td { padding-block: 6px; }
 .tag.pl.fixed .nm { font-size: 22px; color: var(--red); }
 </style>
 <div id="app"></div>
+<script src="customer-sync.js"></script>
 <script>// Money math for the register. All amounts are whole cents.
 (function (root) {
   const pct = (v) => Math.max(0, Math.min(100, Number(v) || 0));
@@ -564,6 +565,8 @@ window.DEFAULT_PRICE_LIST = {"name":"Dress","updated":"Aug 13, 2026, 5:29 PM","c
         receiptFooter: "Thank you for visiting Bespoke Tailoring.",
         paper: "80mm",
         websiteUrl: "https://ilovemisspookie.netlify.app",
+        // This computer's key for the website's customer list (POS_APP_KEY in Netlify).
+        syncKey: "",
         smtpUser: "bespoketailoringerie@gmail.com",
         smtpPass: "",
         backupFolder: "",
@@ -593,6 +596,7 @@ window.DEFAULT_PRICE_LIST = {"name":"Dress","updated":"Aug 13, 2026, 5:29 PM","c
     S.settings.markup = { byType: {}, fallback: null, round: "5", ...(S.settings.markup || {}) };
     if (!S.priceList && window.DEFAULT_PRICE_LIST) S.priceList = JSON.parse(JSON.stringify(window.DEFAULT_PRICE_LIST));
     for (const k of ["items", "customers", "sales", "returns", "stockLog", "staff", "punches", "notes", "drawers", "shifts"]) if (!Array.isArray(S[k])) S[k] = [];
+    if (!S.sync || typeof S.sync !== "object") S.sync = { cursor: null, outbox: [] };
   }
 
   async function persist() {
@@ -730,6 +734,35 @@ window.DEFAULT_PRICE_LIST = {"name":"Dress","updated":"Aug 13, 2026, 5:29 PM","c
       rec.emailedTo = to; persist();
     } else toast((r && r.error) || "The receipt wasn't sent.", true);
   }
+
+  // ---------- the website's customer list ----------
+  let sync = null;
+  function startSync() {
+    if (PREVIEW || !window.CustomerSync) return;
+    sync = window.CustomerSync.createSync({
+      base: S.settings.websiteUrl, key: S.settings.syncKey,
+      adapter: {
+        customers: () => S.customers,
+        addCustomer: (f) => { const c = { id: uid(), created: new Date().toISOString(), source: "website", ...f }; S.customers.push(c); return c; },
+        removeCustomer: (c) => { S.customers = S.customers.filter((x) => x !== c); if (UI.customer && UI.customer.id === c.id) UI.customer = null; },
+        state: () => S.sync,
+        saveState: (st) => { S.sync = st; },
+        changed: () => { persist(); const el = document.getElementById("sync-status"); if (el) el.textContent = syncLine(); },
+      },
+    });
+    if (S.settings.syncKey) sync.syncNow();
+    setInterval(() => { sync.configure({ base: S.settings.websiteUrl, key: S.settings.syncKey }); if (S.settings.syncKey) sync.syncNow(); }, 2 * 60 * 1000);
+  }
+  function syncLine() {
+    if (PREVIEW) return "Connects in the installed app.";
+    if (!S.settings.syncKey) return "Not connected.";
+    if (!sync) return "";
+    const st = sync.status, n = sync.pending();
+    if (st.state === "ok") return `Connected · last synced ${new Date(st.lastOk).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}${n ? ` · ${n} waiting` : ""}`;
+    if (st.state === "syncing") return "Syncing…";
+    return (st.error || "Not synced yet.") + (n ? ` ${n} waiting.` : "");
+  }
+  const custOf = (snap) => snap && S.customers.find((x) => x.id === snap.id);
 
   // ---------- render ----------
   const VIEWS = [["register", "Register"], ["returns", "Returns"], ["stock", "Stock"], ["sales", "Sales"], ["staff", "Staff"], ["settings", "Settings"]];
@@ -1324,8 +1357,11 @@ window.DEFAULT_PRICE_LIST = {"name":"Dress","updated":"Aug 13, 2026, 5:29 PM","c
           <section class="panel"><div class="in"><h3 class="banner">Emailing receipts</h3><p class="small muted" style="margin:0">Receipts go out from the shop's Gmail. Gmail needs an <b>app password</b> for this, not your normal password: in your Google Account, turn on 2-Step Verification, then search for "App passwords" and make one called Register.</p>
             ${fld("smtpUser", "Gmail address", "email")}${fld("smtpPass", "App password", "password", 'autocomplete="off"')}
             <div class="row"><input type="email" id="test-to" style="max-width:260px" placeholder="Send a test to…" value="${esc(UI.testTo || s.smtpUser)}" data-in="test-to"><button class="btn" data-act="test-email">Send test receipt</button></div></div></section>
-          <section class="panel"><div class="in"><h3 class="banner">Website Shop</h3>${fld("websiteUrl", "Website address", "url")}
-            <p class="small muted" style="margin:0">The Stock screen can bring in the items listed on the website. Sending stock counts back so the Shop can show "sold out" is the next step to build.</p></div></section>
+          <section class="panel"><div class="in"><h3 class="banner">Website &amp; customer list</h3>${fld("websiteUrl", "Website address", "url")}
+            ${fld("syncKey", "This computer's key (POS_APP_KEY in Netlify)", "password", 'autocomplete="off" spellcheck="false"')}
+            <div class="row"><button class="btn" data-act="sync-now">${s.syncKey ? "Sync now" : "Connect"}</button><span class="small" id="sync-status">${syncLine()}</span></div>
+            <p class="small muted" style="margin:0">Connects this computer to the website's customer list. Customers added here and sales for a customer go to the website, credited to the POS; customers from Calendly, the staff page and the tablet come back. It keeps working offline and catches up when the internet is back.</p>
+            <p class="small muted" style="margin:0">The Stock screen can bring in the items listed on the website.</p></div></section>
           <section class="panel"><div class="in"><h3 class="banner">Backups</h3><p class="small muted" style="margin:0">Everything is kept on this computer and copied to the backup folder once a day (the last 60 days are kept). Pick a OneDrive or USB-drive folder so a broken computer can't lose your sales history.</p>
             <div class="small"><span class="label">Backup folder</span><div class="num" style="word-break:break-all">${esc(s.backupFolder || "The app's own folder on this computer")}</div></div>
             <div class="row"><button class="btn" data-act="backup-choose">Choose folder</button><button class="btn" data-act="backup-now">Back up now</button><button class="btn ghost" data-act="backup-open">Open folder</button><button class="btn ghost danger" data-act="backup-restore">Restore a backup</button></div>
@@ -1937,12 +1973,20 @@ window.DEFAULT_PRICE_LIST = {"name":"Dress","updated":"Aug 13, 2026, 5:29 PM","c
       UI.dialog = { type: "cust", name: /@|\d{3}/.test(q) ? "" : q, email: q.includes("@") ? q : "", phone: /^[\d\s()+-]{7,}$/.test(q) ? q : "" };
       renderDialog();
     },
+    "sync-now": async () => {
+      if (PREVIEW) return toast("In the installed app, this connects to the website's customer list.");
+      if (!S.settings.syncKey) return toast("Paste this computer's key in first.", true);
+      sync.configure({ base: S.settings.websiteUrl, key: S.settings.syncKey });
+      const el = document.getElementById("sync-status"); if (el) el.textContent = "Syncing…";
+      const st = await sync.syncNow();
+      if (st.state === "ok") toast(`Customer list synced. ${S.customers.length} customer${S.customers.length === 1 ? "" : "s"} on this computer.`); else toast(st.error, true);
+    },
     "cust-save": () => {
       const d = UI.dialog;
       const c = { id: uid(), name: String(d.name).trim(), email: String(d.email).trim().toLowerCase(), phone: String(d.phone).trim(), created: new Date().toISOString() };
       if (!c.name && !c.email) return toast("Add at least a name or an email.", true);
       if (c.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(c.email)) return toast("That email address doesn't look right.", true);
-      S.customers.push(c); persist();
+      S.customers.push(c); persist(); if (sync) sync.touched(c);
       UI.customer = c; UI.custQuery = ""; UI.dialog = null; renderDialog(); refreshTape();
     },
     "cust-clear": () => { UI.customer = null; refreshTape(); setTimeout(() => { const i = document.getElementById("custq"); if (i) i.focus(); }); },
@@ -1994,6 +2038,7 @@ window.DEFAULT_PRICE_LIST = {"name":"Dress","updated":"Aug 13, 2026, 5:29 PM","c
         run: async () => {
           for (const l of rec.lines) if (l.itemId) { const it = itemById(l.itemId); if (it) { const k = L.stockKey(l.size, l.colorId); it.stock[k] = (Number(it.stock[k]) || 0) + l.qty; logStock(it.id, k, l.qty, `Void #${rec.no}`); } }
           rec.voided = true; rec.voidedAt = new Date().toISOString();
+          if (sync && rec.customer) sync.void(custOf(rec.customer), rec.no);
           await persist(); render(); toast(`Receipt #${rec.no} voided.`);
         } };
       renderDialog();
@@ -2156,6 +2201,7 @@ window.DEFAULT_PRICE_LIST = {"name":"Dress","updated":"Aug 13, 2026, 5:29 PM","c
       const orig = S.sales.find((x) => x.id === UI.credit.saleId);
       if (orig) recordReturn(orig, UI.credit.lines, { type: "exchange", method: "Exchange", exchangeSaleNo: sale.no, exchangeSaleId: sale.id });
     }
+    if (sync && sale.customer && sale.total > 0) sync.sale(custOf(sale.customer), sale.no, sale.total, today());
     UI.cart = []; UI.cartDisc = null; UI.customer = null; UI.credit = null; UI.custQuery = "";
     await persist();
     UI.dialog = { type: "receipt", kind: "sale", id: sale.id, fresh: true };
@@ -2415,6 +2461,7 @@ window.DEFAULT_PRICE_LIST = {"name":"Dress","updated":"Aug 13, 2026, 5:29 PM","c
     migrate();
     if (PREVIEW && !S.items.length) await seedPreview();
     render();
+    startSync();
     setInterval(tick, 20000);
     if (!PREVIEW) pos.info().then((i) => { UI.info = i; }).catch(() => {});
   }

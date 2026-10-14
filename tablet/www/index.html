@@ -269,6 +269,13 @@ label.f > span, .label { font-family: var(--f-mono); font-weight: 700; font-size
 .tsec-toggle > span { font-family: var(--f-mono); font-weight: 700; font-size: 26px; color: var(--red); }
 .tused { display: inline-block; min-width: 24px; padding: 0 6px; background: var(--red); color: var(--bg); font-family: var(--f-mono); font-size: 13px; letter-spacing: 0; vertical-align: middle; text-align: center; }
 
+.linkbtn { margin-left: auto; border: 2px solid var(--bg); background: transparent; color: var(--bg); min-height: 44px; padding: 6px 14px; cursor: pointer; font-family: var(--f-mono); font-weight: 700; font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; display: inline-flex; align-items: center; gap: 8px; }
+.linkbtn i { width: 10px; height: 10px; border-radius: 50%; background: var(--rule); display: inline-block; }
+.linkbtn.ok i { background: #7fd39a; } .linkbtn.warn i { background: var(--gold); } .linkbtn.bad i { background: #ff8a8a; }
+.linkbtn ~ .clock { margin-left: 16px; }
+.spentrow { display: flex; gap: 8px 18px; flex-wrap: wrap; font-family: var(--f-mono); font-size: 14px; }
+.spentrow b { color: var(--red); }
+
 /* Tags tab */
 .board { display: grid; gap: 22px; }
 .board .grp { display: grid; gap: 10px; }
@@ -320,6 +327,7 @@ label.f > span, .label { font-family: var(--f-mono); font-weight: 700; font-size
       <button data-act="nav" data-v="tags" id="tab-tags">Tags</button>
       <button data-act="nav" data-v="customers" id="tab-customers">Customers</button>
     </nav>
+    <button class="linkbtn" id="link-btn" data-act="link-open" hidden></button>
     <div class="clock" id="clock"></div>
   </header>
   <div class="notice" id="notice"></div>
@@ -327,6 +335,7 @@ label.f > span, .label { font-family: var(--f-mono); font-weight: 700; font-size
 </div>
 <div id="dlg"></div>
 
+<script src="customer-sync.js"></script>
 <script src="version.js"></script>
 <script>
 (() => {
@@ -467,7 +476,9 @@ label.f > span, .label { font-family: var(--f-mono); font-weight: 700; font-size
   let db = null;
   const LS = "bespoke-tablet-v1";
   const readLocal = () => { try { return JSON.parse(localStorage.getItem(LS) || "null"); } catch { return null; } };
-  const writeLocal = () => { try { localStorage.setItem(LS, JSON.stringify({ settings, sales, customers, tags })); } catch {} };
+  let syncState = { cursor: null, outbox: [] };
+  let link = { base: "https://ilovemisspookie.netlify.app", key: "" };   // this tablet's connection to the website
+  const writeLocal = () => { try { localStorage.setItem(LS, JSON.stringify({ settings, sales, customers, tags, syncState, link })); } catch {} };
 
   async function saveSettings() {
     writeLocal();
@@ -505,9 +516,45 @@ label.f > span, .label { font-family: var(--f-mono); font-weight: 700; font-size
     }, () => {});
   }
 
+  // ---------- the website's customer list (installed app) ----------
+  // Customers added or edited here, and sales for a customer, go to the website; customers from the
+  // website (Calendly bookings, the staff page, the shop computer) come back. Works offline and
+  // catches up when the connection returns.
+  let sync = null;
+  function startSync() {
+    if (!window.CustomerSync || !IN_APP) return;
+    sync = window.CustomerSync.createSync({
+      base: link.base, key: link.key,
+      adapter: {
+        customers: () => customers,
+        addCustomer: (f) => { const c = { id: uid(), created: new Date().toISOString(), source: "website", ...f }; customers.push(c); return c; },
+        removeCustomer: (c) => {
+          // Removed on the website. Keep them here only if they have tags, so the tag history isn't lost.
+          if (tags.some((t) => t.customerId === c.id)) { c.remoteId = null; c.unlinked = true; }
+          else { customers = customers.filter((x) => x !== c); if (UI.custSel === c.id) UI.custSel = null; }
+        },
+        state: () => syncState,
+        saveState: (st) => { syncState = st; writeLocal(); },
+        changed: () => { writeLocal(); linkBadge(); if ((UI.view === "customers" || UI.view === "tags") && !UI.dialog) render(); else if (UI.dialog && UI.dialog.type === "link") renderDialog(); },
+      },
+    });
+    linkBadge();
+    if (link.key) sync.syncNow();
+    setInterval(() => { if (link.key && document.visibilityState === "visible") sync.syncNow(); }, 60 * 1000);
+    document.addEventListener("visibilitychange", () => { if (link.key && document.visibilityState === "visible") sync.syncNow(); });
+  }
+  function linkBadge() {
+    const b = document.getElementById("link-btn"); if (!b || !sync) return;
+    b.hidden = false;
+    const st = sync.status.state, n = sync.pending();
+    const [cls, text] = !link.key ? ["", "Connect customer list"] : st === "ok" ? ["ok", n ? `${n} to send` : "Customer list"] : st === "syncing" ? ["warn", "Syncing…"] : st === "badkey" ? ["bad", "Check key"] : st === "offline" ? ["warn", n ? `Offline · ${n} waiting` : "Offline"] : ["warn", "Customer list"];
+    b.className = "linkbtn " + cls; b.innerHTML = `<i></i>${esc(text)}`;
+  }
+  const custOf = (snap) => snap && customers.find((x) => x.id === snap.id);
+
   async function connect() {
     const local = readLocal();
-    if (local) { settings = { ...settings, ...local.settings }; sales = local.sales || []; customers = local.customers || []; tags = local.tags || []; }
+    if (local) { settings = { ...settings, ...local.settings }; sales = local.sales || []; customers = local.customers || []; syncState = local.syncState || syncState; link = { ...link, ...(local.link || {}) }; tags = local.tags || []; }
     settings.tagPrices = settings.tagPrices || {}; settings.nextTag = settings.nextTag || START_TAG;
     try { db = await window.claude?.use?.("db"); } catch { db = null; }
     if (!db) {
@@ -736,7 +783,8 @@ label.f > span, .label { font-family: var(--f-mono); font-weight: 700; font-size
       </div></div>`;
     const mine = tags.filter((t) => t.customerId === c.id).sort((a, b) => (a.status === "closed") - (b.status === "closed") || (a.opened < b.opened ? 1 : -1));
     return `<div class="who-head"><div><span class="label">Customer</span><h2>${esc(custName(c))}</h2>
-          <span class="muted">${esc([c.phone, c.email].filter(Boolean).join(" · "))}</span></div>
+          <span class="muted">${esc([c.phone, c.email].filter(Boolean).join(" · "))}</span>
+          ${c.spent ? `<div class="spentrow"><span>Spent <b>${m(Math.round(c.spent.total * 100))}</b></span>${["pos", "tablet", "staff"].filter((k) => c.spent[k]).map((k) => `<span>${{ pos: "POS", tablet: "Tablet", staff: "Added by hand" }[k]} ${m(Math.round(c.spent[k] * 100))}</span>`).join("")}${c.visits ? `<span>${c.visits} visit${c.visits === 1 ? "" : "s"}</span>` : ""}</div>` : ""}</div>
         <button class="btn ghost" data-act="cust-edit">Edit details</button>
         <button class="btn primary big" style="width:auto" data-act="tag-new">Open tag</button></div>
       <div class="tagcards">${mine.length ? mine.map(tagCardHtml).join("") : `<div class="empty">No tags yet. Tap <b>Open tag</b> to write up the alterations.</div>`}</div>`;
@@ -881,6 +929,18 @@ label.f > span, .label { font-family: var(--f-mono); font-weight: 700; font-size
           ${!d.fresh && !rec.voided ? `<button class="btn ghost" data-act="rc-void" style="justify-self:start">Void this sale</button>` : ""}
           <div class="foot">${d.fresh ? `<button class="btn primary" data-act="close">Start next sale</button>` : `<button class="btn" data-act="close">Close</button>`}</div>
         </div></div>`, true);
+    }
+    if (d.type === "link") {
+      const st = sync ? sync.status : { state: "off" };
+      const when = st.lastOk ? new Date(st.lastOk).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : "";
+      const line = !link.key ? "Not connected yet." : st.state === "ok" ? `Connected. Last synced at ${when}.` : st.state === "syncing" ? "Syncing now…" : st.state === "badkey" ? st.error : st.state === "offline" ? st.error : "Connected.";
+      return wrap(`<h2>Customer list</h2>
+        <p class="muted" style="margin:0">Connects this tablet to the website's customer list, so customers and their spending are shared with the shop computer and the staff page.</p>
+        <p style="margin:0"><b>${esc(line)}</b>${sync && sync.pending() ? ` ${sync.pending()} change${sync.pending() === 1 ? "" : "s"} waiting to send.` : ""}</p>
+        <label class="f"><span>Tablet key</span><input type="text" id="lk-key" value="${esc(d.key)}" data-in="dlg" data-k="key" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="TABLET_APP_KEY from Netlify"></label>
+        <label class="f"><span>Website address</span><input type="text" id="lk-base" value="${esc(d.base)}" data-in="dlg" data-k="base" autocomplete="off" autocapitalize="none" spellcheck="false"></label>
+        <div class="foot">${link.key ? `<button class="btn ghost left" data-act="link-off">Disconnect</button>` : ""}<button class="btn" data-act="close">Close</button>
+          ${link.key ? `<button class="btn" data-act="link-sync">Sync now</button>` : ""}<button class="btn primary" data-act="link-save">${link.key ? "Save" : "Connect"}</button></div>`);
     }
     if (d.type === "confirm") {
       return wrap(`<h2>${esc(d.title)}</h2><p style="margin:0">${d.text}</p>
@@ -1088,6 +1148,21 @@ label.f > span, .label { font-family: var(--f-mono); font-weight: 700; font-size
     "tag-save-close": async () => { const t = await storeTag(); if (!t) return; UI.dialog = null; closeTag(t); },
     "tag-close": (el) => { const t = tags.find((x) => x.id === el.dataset.id); if (t) closeTag(t); },
     "tag-discard": () => { UI.dialog = null; render(); },
+    "link-open": () => { UI.dialog = { type: "link", key: link.key, base: link.base }; renderDialog(); },
+    "link-sync": async () => { if (sync) { renderDialog(); await sync.syncNow(); renderDialog(); } },
+    "link-save": async () => {
+      const d = UI.dialog; const key = String(d.key || "").trim(), base = String(d.base || "").trim().replace(/\/+$/, "");
+      if (!key) return toast("Paste in the tablet key first.", true);
+      if (!/^https:\/\/[^\s/]+\.[^\s/]+/.test(base)) return toast("The website address should start with https://", true);
+      const changedKey = key !== link.key || base !== link.base;
+      link = { base, key }; writeLocal();
+      if (!sync) return toast("The customer list connects in the installed tablet app.", true);
+      sync.configure({ base, key }); if (changedKey) sync.reset();
+      toast("Connecting…"); const st = await sync.syncNow();
+      if (st.state === "ok") { UI.dialog = null; renderDialog(); render(); toast(`Connected. ${customers.length} customer${customers.length === 1 ? "" : "s"} on this tablet.`); }
+      else { renderDialog(); toast(st.error || "Couldn't connect.", true); }
+    },
+    "link-off": () => { UI.dialog = { type: "confirm", title: "Disconnect from the customer list?", text: "Customers stay on this tablet. New customers and sales won't reach the website until you connect again.", yes: "Disconnect", run: () => { link.key = ""; writeLocal(); if (sync) sync.configure({ key: "" }); linkBadge(); toast("Disconnected."); } }; renderDialog(); },
     "tag-who": (el) => { UI.custSel = el.dataset.id; UI.view = "customers"; render(); },
     "due-quick": (el) => { const t = UI.dialog.tag; t.due = dayPlus(Number(el.dataset.n)); t.noDue = false; refreshDue(); },
     "tsec": (el) => { const d = UI.dialog; d.open = d.open || {}; d.open[el.dataset.s] = !(el.getAttribute("aria-expanded") === "true"); renderDialog(); const b = document.querySelector(`[data-act="tsec"][data-s="${el.dataset.s}"]`); if (b) b.scrollIntoView({ block: "start", behavior: "smooth" }); },
@@ -1124,7 +1199,7 @@ label.f > span, .label { font-family: var(--f-mono); font-weight: 700; font-size
       const rec = sales.find((x) => x.id === UI.dialog.id);
       const card = rec.payments.filter((p) => p.method === "Card").reduce((a, p) => a + p.amount, 0);
       UI.dialog = { type: "confirm", title: `Void receipt ${recNo(rec)}?`, text: `The sale stops counting toward today's totals.${card ? ` <b>Also void or refund the ${m(card)} card charge on the terminal.</b>` : ""}`, yes: "Void sale",
-        run: async () => { rec.voided = true; rec.voidedAt = new Date().toISOString(); refreshShelf(); await saveSale(rec); toast(`Receipt ${recNo(rec)} voided.`); } };
+        run: async () => { rec.voided = true; rec.voidedAt = new Date().toISOString(); refreshShelf(); if (sync && rec.customer) sync.void(custOf(rec.customer), recNo(rec)); await saveSale(rec); toast(`Receipt ${recNo(rec)} voided.`); } };
       renderDialog();
     },
   };
@@ -1149,6 +1224,7 @@ label.f > span, .label { font-family: var(--f-mono); font-weight: 700; font-size
     if (!c) { c = { id: uid(), created: new Date().toISOString(), source: "tablet" }; customers.push(c); }
     Object.assign(c, { name, phone, email });
     UI.dialog = null; UI.custSel = c.id; UI.custQ = ""; UI.view = "customers";
+    if (sync) sync.touched(c);
     await saveDoc("customers", c);
     render();
     if (thenTag) openNewTag(c); else toast(d.id ? "Saved." : `${custName(c)} added.`);
@@ -1225,6 +1301,7 @@ label.f > span, .label { font-family: var(--f-mono); font-weight: 700; font-size
     for (const tg of paidTags) saveDoc("tags", tg);
     UI.dialog = { type: "receipt", id: sale.id, fresh: true };
     render();
+    if (sync && sale.customer) sync.sale(custOf(sale.customer), recNo(sale), sale.total, today(), sale.tagNos && sale.tagNos.length ? "Tag " + sale.tagNos.map((n) => "#" + n).join(", ") : "");
     await saveSale(sale);
     await saveSettings();
   }
@@ -1292,6 +1369,7 @@ label.f > span, .label { font-family: var(--f-mono); font-weight: 700; font-size
   tick(); setInterval(tick, 20000);
   render();
   connect();
+  startSync();
   checkUpdate(); setInterval(checkUpdate, 4 * 60 * 60 * 1000);
 })();
 </script>
