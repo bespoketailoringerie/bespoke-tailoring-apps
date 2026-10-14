@@ -280,6 +280,11 @@ label.f > span, .label { font-family: var(--f-mono); font-weight: 700; font-size
 .ttotal-row { display: flex; justify-content: space-between; align-items: baseline; font-family: var(--f-display); font-size: 28px; color: var(--ink); }
 .ttotal-row .money { font-family: var(--f-mono); font-weight: 700; font-size: 28px; color: var(--red); }
 
+.searchbox { position: relative; }
+.searchbox input[type="text"] { padding-right: 52px; }
+.searchbox .clear { position: absolute; right: 4px; top: 50%; transform: translateY(-50%); width: 44px; height: 44px; border: 0; background: none; color: var(--brown); font-size: 20px; cursor: pointer; border-radius: 50%; }
+.searchbox .clear:active { background: var(--gold-soft); color: var(--red); }
+
 /* Tags tab */
 .board { display: grid; gap: 22px; }
 .board .grp { display: grid; gap: 10px; }
@@ -747,10 +752,40 @@ label.f > span, .label { font-family: var(--f-mono); font-weight: 700; font-size
     </div>`;
   }
   // Tags tab: every open tag, soonest due first, grouped by when it's due.
+  // A search box with an X that clears it.
+  const searchBox = (id, kind, value, placeholder) => `<div class="searchbox">
+      <input type="text" id="${id}" placeholder="${esc(placeholder)}" value="${esc(value)}" data-in="${kind}" autocomplete="off" aria-label="${esc(placeholder)}">
+      <button type="button" class="clear" data-act="search-clear" data-for="${id}" aria-label="Clear search" ${value ? "" : "hidden"}>✕</button></div>`;
+
+  // Tags tab: every open tag, soonest due first, grouped by when it's due. The search matches the
+  // customer's name or phone, the tag number, or anything written on the tag.
+  function tagMatches(t, q) {
+    if (!q) return true;
+    const c = customers.find((x) => x.id === t.customerId) || {};
+    const hay = [custName(c), c.phone, c.email, "#" + t.no, String(t.no), t.notes, ...tagLines(t).map((l) => l.name + " " + l.measure)].join(" ").toLowerCase();
+    const qd = phoneDigits(q);
+    return q.toLowerCase().split(/\s+/).filter(Boolean).every((w) => hay.includes(w)) || (qd.length >= 3 && phoneDigits(c.phone).includes(qd));
+  }
   function tagsView() {
     const open = tags.filter((t) => t.status !== "closed");
+    const late = open.filter(isLate).length;
+    return `<div class="page"><div class="wrap">
+      <div style="display:flex;gap:12px;align-items:end;flex-wrap:wrap"><div><span class="label">Tags</span><h2>Open tags</h2></div>
+        <span class="muted" style="margin-left:auto">${open.length} open${late ? ` · <b style="color:var(--red)">${late} overdue</b>` : ""}</span></div>
+      ${open.length ? searchBox("tag-q", "tagq", UI.tagQ || "", "Find a tag by name, phone, tag number or alteration") : ""}
+      <div class="board" id="board">${boardHtml()}</div></div></div>`;
+  }
+  function boardHtml() {
+    const open = tags.filter((t) => t.status !== "closed");
+    if (!open.length) return `<div class="frame"><div class="in">
+        <svg class="glyph" viewBox="0 0 72 72" aria-hidden="true"><rect x="22" y="8" width="28" height="56" fill="none" stroke="var(--red)" stroke-width="2"/><circle cx="36" cy="18" r="4" fill="none" stroke="var(--red)" stroke-width="2"/><path d="M28 32h16M28 40h16M28 48h10" stroke="var(--gold)" stroke-width="2"/></svg>
+        <h3 style="font-size:24px">No open tags</h3>
+        <p class="muted" style="margin:0;max-width:46ch">Open a tag from a customer on the Customers tab. Open tags show here, soonest due first.</p></div></div>`;
+    const q = String(UI.tagQ || "").trim();
+    const shown = open.filter((t) => tagMatches(t, q));
+    if (!shown.length) return `<div class="empty">No open tags match “${esc(q)}”.</div>`;
     const key = (t) => t.due || "9999-99-99";
-    const sorted = open.slice().sort((a, b) => key(a) < key(b) ? -1 : key(a) > key(b) ? 1 : (a.no || 0) - (b.no || 0));
+    const sorted = shown.sort((a, b) => key(a) < key(b) ? -1 : key(a) > key(b) ? 1 : (a.no || 0) - (b.no || 0));
     const t0 = today(), t1 = dayPlus(1), t7 = dayPlus(7);
     const groups = [
       ["late", "Overdue", (t) => t.due && t.due < t0],
@@ -760,19 +795,11 @@ label.f > span, .label { font-family: var(--f-mono); font-weight: 700; font-size
       ["", "Later", (t) => t.due && t.due > t7],
       ["", "No due date", (t) => !t.due],
     ];
-    const late = open.filter(isLate).length;
-    const body = open.length ? groups.map(([cls, title, test]) => {
+    return groups.map(([cls, title, test]) => {
       const list = sorted.filter(test);
       return list.length ? `<div class="grp ${cls}"><span class="label">${title} <span class="n">${list.length}</span></span>
         <div class="tagcards">${list.map((t) => tagCardHtml(t, true)).join("")}</div></div>` : "";
-    }).join("") : `<div class="frame"><div class="in">
-        <svg class="glyph" viewBox="0 0 72 72" aria-hidden="true"><rect x="22" y="8" width="28" height="56" fill="none" stroke="var(--red)" stroke-width="2"/><circle cx="36" cy="18" r="4" fill="none" stroke="var(--red)" stroke-width="2"/><path d="M28 32h16M28 40h16M28 48h10" stroke="var(--gold)" stroke-width="2"/></svg>
-        <h3 style="font-size:24px">No open tags</h3>
-        <p class="muted" style="margin:0;max-width:46ch">Open a tag from a customer on the Customers tab. Open tags show here, soonest due first.</p></div></div>`;
-    return `<div class="page"><div class="wrap">
-      <div style="display:flex;gap:12px;align-items:end;flex-wrap:wrap"><div><span class="label">Tags</span><h2>Open tags</h2></div>
-        <span class="muted" style="margin-left:auto">${open.length} open${late ? ` · <b style="color:var(--red)">${late} overdue</b>` : ""}</span></div>
-      <div class="board">${body}</div></div></div>`;
+    }).join("");
   }
 
   function custMatches() {
@@ -783,7 +810,7 @@ label.f > span, .label { font-family: var(--f-mono); font-weight: 700; font-size
   const openCount = (c) => tags.filter((t) => t.customerId === c.id && t.status !== "closed").length;
   function rosterHtml() {
     return `<div class="find">
-        <input type="text" id="cust-q" placeholder="Find a customer by name or phone" value="${esc(UI.custQ)}" data-in="custq" autocomplete="off" aria-label="Find a customer">
+        ${searchBox("cust-q", "custq", UI.custQ, "Find a customer by name or phone")}
         <button class="btn primary" data-act="cust-new">+ New customer</button></div>
       <div class="who-list" id="who-list">${whoListHtml()}</div>`;
   }
@@ -1185,6 +1212,10 @@ label.f > span, .label { font-family: var(--f-mono); font-weight: 700; font-size
       else { renderDialog(); toast(st.error || "Couldn't connect.", true); }
     },
     "link-off": () => { UI.dialog = { type: "confirm", title: "Disconnect from the customer list?", text: "Customers stay on this tablet. New customers and sales won't reach the website until you connect again.", yes: "Disconnect", run: () => { link.key = ""; writeLocal(); if (sync) sync.configure({ key: "" }); linkBadge(); toast("Disconnected."); } }; renderDialog(); },
+    "search-clear": (el) => {
+      const input = document.getElementById(el.dataset.for); if (!input) return;
+      input.value = ""; input.dispatchEvent(new Event("input", { bubbles: true })); input.focus();
+    },
     "tag-who": (el) => { UI.custSel = el.dataset.id; UI.view = "customers"; render(); },
     "due-quick": (el) => { const t = UI.dialog.tag; t.due = dayPlus(Number(el.dataset.n)); t.noDue = false; refreshDue(); },
     "tsec": (el) => { const d = UI.dialog; d.open = d.open || {}; d.open[el.dataset.s] = !(el.getAttribute("aria-expanded") === "true"); renderDialog(); const b = document.querySelector(`[data-act="tsec"][data-s="${el.dataset.s}"]`); if (b) b.scrollIntoView({ block: "start", behavior: "smooth" }); },
@@ -1295,6 +1326,8 @@ label.f > span, .label { font-family: var(--f-mono); font-weight: 700; font-size
     if (!UI.cart.length) UI.cartCustomer = null;
   }
 
+  function clearBtn(input) { const b = input.parentElement && input.parentElement.querySelector(".clear"); if (b) b.hidden = !input.value; }
+
   function fallbackCopy(text) {
     const t = document.createElement("textarea"); t.value = text; t.setAttribute("readonly", ""); t.style.position = "fixed"; t.style.opacity = "0";
     document.body.appendChild(t); t.select(); let ok = false; try { ok = document.execCommand("copy"); } catch {} t.remove(); return ok;
@@ -1338,7 +1371,8 @@ label.f > span, .label { font-family: var(--f-mono); font-weight: 700; font-size
   });
   document.addEventListener("input", (ev) => {
     const el = ev.target; const kind = el.dataset.in;
-    if (kind === "custq") { UI.custQ = el.value; const w = document.getElementById("who-list"); if (w) w.innerHTML = whoListHtml(); return; }
+    if (kind === "custq") { UI.custQ = el.value; const w = document.getElementById("who-list"); if (w) w.innerHTML = whoListHtml(); clearBtn(el); return; }
+    if (kind === "tagq") { UI.tagQ = el.value; const w = document.getElementById("board"); if (w) w.innerHTML = boardHtml(); clearBtn(el); return; }
     if (!kind || !UI.dialog) return;
     if (kind === "tagm") {
       const k = el.dataset.k; const r = UI.dialog.tag.items[k] = UI.dialog.tag.items[k] || { on: false, measure: "", qty: 1 };
