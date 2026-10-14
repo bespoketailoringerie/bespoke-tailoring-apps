@@ -55,7 +55,8 @@ h2 { font-size: 30px; line-height: 1.15; }
 .tabs button + button { border-left: 0; }
 .tabs button:active { background: rgba(247, 238, 218, 0.15); }
 .tabs button[aria-current="page"] { background: var(--bg); color: var(--red); }
-.bar .clock { margin-left: auto; font-family: var(--f-mono); font-size: 14px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--bg); white-space: nowrap; }
+.bar .tabs { margin-right: auto; }
+.bar .clock { font-family: var(--f-mono); font-size: 14px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--bg); white-space: nowrap; }
 .notice { background: var(--gold); color: var(--ink); font-family: var(--f-mono); font-size: 14px; padding-block: 7px; padding-left: max(18px, env(safe-area-inset-left, 0px)); padding-right: max(18px, env(safe-area-inset-right, 0px)); }
 .notice:empty { display: none; }
 main { min-height: 0; overflow: hidden; }
@@ -269,10 +270,9 @@ label.f > span, .label { font-family: var(--f-mono); font-weight: 700; font-size
 .tsec-toggle > span { font-family: var(--f-mono); font-weight: 700; font-size: 26px; color: var(--red); }
 .tused { display: inline-block; min-width: 24px; padding: 0 6px; background: var(--red); color: var(--bg); font-family: var(--f-mono); font-size: 13px; letter-spacing: 0; vertical-align: middle; text-align: center; }
 
-.linkbtn { margin-left: auto; border: 2px solid var(--bg); background: transparent; color: var(--bg); min-height: 44px; padding: 6px 14px; cursor: pointer; font-family: var(--f-mono); font-weight: 700; font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; display: inline-flex; align-items: center; gap: 8px; }
+.linkbtn { border: 2px solid var(--bg); background: transparent; color: var(--bg); min-height: 44px; padding: 6px 14px; cursor: pointer; font-family: var(--f-mono); font-weight: 700; font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; display: inline-flex; align-items: center; gap: 8px; }
 .linkbtn i { width: 10px; height: 10px; border-radius: 50%; background: var(--rule); display: inline-block; }
 .linkbtn.ok i { background: #7fd39a; } .linkbtn.warn i { background: var(--gold); } .linkbtn.bad i { background: #ff8a8a; }
-.linkbtn ~ .clock { margin-left: 16px; }
 .spentrow { display: flex; gap: 8px 18px; flex-wrap: wrap; font-family: var(--f-mono); font-size: 14px; }
 .spentrow b { color: var(--red); }
 
@@ -284,6 +284,11 @@ label.f > span, .label { font-family: var(--f-mono); font-weight: 700; font-size
 .searchbox input[type="text"] { padding-right: 52px; }
 .searchbox .clear { position: absolute; right: 4px; top: 50%; transform: translateY(-50%); width: 44px; height: 44px; border: 0; background: none; color: var(--brown); font-size: 20px; cursor: pointer; border-radius: 50%; }
 .searchbox .clear:active { background: var(--gold-soft); color: var(--red); }
+
+.fsbtn { flex: none; width: 48px; height: 48px; display: grid; place-items: center; border: 2px solid var(--bg); background: transparent; color: var(--bg); cursor: pointer; padding: 0; }
+.fsbtn svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: square; }
+.fsbtn .fs-out { display: none; } .fsbtn.on .fs-in { display: none; } .fsbtn.on .fs-out { display: inline; }
+.fsbtn:active { background: rgba(247, 238, 218, 0.15); }
 
 /* Tags tab */
 .board { display: grid; gap: 22px; }
@@ -338,12 +343,15 @@ label.f > span, .label { font-family: var(--f-mono); font-weight: 700; font-size
     </nav>
     <button class="linkbtn" id="link-btn" data-act="link-open" hidden></button>
     <div class="clock" id="clock"></div>
+    <button class="fsbtn" id="fs-btn" data-act="fullscreen" aria-label="Full screen" title="Full screen" hidden>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path class="fs-in" d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/><path class="fs-out" d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"/></svg></button>
   </header>
   <div class="notice" id="notice"></div>
   <main id="main"><div class="empty" style="margin:24px">Opening the register…</div></main>
 </div>
 <div id="dlg"></div>
 
+<script src="capacitor.js"></script>
 <script src="customer-sync.js"></script>
 <script src="version.js"></script>
 <script>
@@ -578,6 +586,43 @@ label.f > span, .label { font-family: var(--f-mono); font-weight: 700; font-size
   }
   const custOf = (snap) => snap && customers.find((x) => x.id === snap.id);
 
+  // ---------- full screen ----------
+  // In the installed app this hides Android's status and navigation bars (swipe from the edge to
+  // peek at them). In a browser it uses the browser's full screen. The choice is remembered.
+  let immersive = null;
+  function immersivePlugin() {
+    const C = window.Capacitor; if (!C) return null;
+    try { if (C.Plugins && C.Plugins.Immersive) return C.Plugins.Immersive; } catch {}
+    try { if (typeof C.registerPlugin === "function") return C.registerPlugin("Immersive"); } catch {}
+    if (typeof C.nativePromise === "function") return { set: (o) => C.nativePromise("Immersive", "set", o) };
+    return null;
+  }
+  const FS_KEY = "bespoke-tablet-fullscreen";
+  const fsWanted = () => { try { return localStorage.getItem(FS_KEY) === "1"; } catch { return false; } };
+  const fsRemember = (on) => { try { localStorage.setItem(FS_KEY, on ? "1" : "0"); } catch {} };
+  let fsOn = false;
+  function fsShow(on) { fsOn = on; const b = document.getElementById("fs-btn"); if (b) { b.classList.toggle("on", on); b.setAttribute("aria-label", on ? "Leave full screen" : "Full screen"); b.title = b.getAttribute("aria-label"); } }
+  async function setFullscreen(on) {
+    if (IN_APP && immersive) {
+      try { await immersive.set({ on }); fsShow(on); fsRemember(on); return true; } catch { /* fall through to the browser's full screen */ }
+    }
+    try {
+      if (on && !document.fullscreenElement) await document.documentElement.requestFullscreen({ navigationUI: "hide" });
+      if (!on && document.fullscreenElement) await document.exitFullscreen();
+      fsShow(on); fsRemember(on); return true;
+    } catch { return false; }
+  }
+  function setupFullscreen() {
+    immersive = IN_APP ? immersivePlugin() : null;
+    const canBrowser = !!(document.documentElement.requestFullscreen && document.fullscreenEnabled !== false);
+    const b = document.getElementById("fs-btn"); if (!b) return;
+    if (!immersive && !canBrowser) return;
+    b.hidden = false;
+    document.addEventListener("fullscreenchange", () => { if (!(IN_APP && immersive)) fsShow(!!document.fullscreenElement); });
+    // The app remembers full screen; a browser can only enter it from a tap.
+    if (IN_APP && immersive && fsWanted()) setFullscreen(true);
+  }
+
   async function connect() {
     const local = readLocal();
     if (local) { settings = { ...settings, ...local.settings }; sales = local.sales || []; customers = local.customers || []; syncState = local.syncState || syncState; link = { ...link, ...(local.link || {}) }; tags = local.tags || []; }
@@ -635,7 +680,7 @@ label.f > span, .label { font-family: var(--f-mono); font-weight: 700; font-size
   // ---------- updates (installed Android app only) ----------
   // New versions are published on GitHub. When one is out, a bar offers the new APK;
   // Android then shows its installer and you tap Install.
-  const IN_APP = !!window.Capacitor;
+  const IN_APP = !!window.Capacitor && (typeof window.Capacitor.isNativePlatform !== "function" || window.Capacitor.isNativePlatform());
   const APP_VERSION = window.APP_VERSION || "0.0.0";
   const RELEASES = "https://api.github.com/repos/bespoketailoringerie/bespoke-tailoring-apps/releases/latest";
   const newer = (a, b) => { const x = String(a).replace(/^v/, "").split(".").map(Number), y = String(b).replace(/^v/, "").split(".").map(Number); for (let i = 0; i < 3; i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0); } return false; };
@@ -1197,6 +1242,7 @@ label.f > span, .label { font-family: var(--f-mono); font-weight: 700; font-size
     "tag-save-close": async () => { const t = await storeTag(); if (!t) return; UI.dialog = null; closeTag(t); },
     "tag-close": (el) => { const t = tags.find((x) => x.id === el.dataset.id); if (t) closeTag(t); },
     "tag-discard": () => { UI.dialog = null; render(); },
+    "fullscreen": async () => { const ok = await setFullscreen(!fsOn); if (!ok) toast("Full screen isn't available here.", true); },
     "link-open": () => { UI.dialog = { type: "link", key: link.key, base: link.base }; renderDialog(); },
     "link-sync": async () => { if (sync) { renderDialog(); await sync.syncNow(); renderDialog(); } },
     "link-save": async () => {
@@ -1426,6 +1472,7 @@ label.f > span, .label { font-family: var(--f-mono); font-weight: 700; font-size
   render();
   connect();
   startSync();
+  setupFullscreen();
   checkUpdate(); setInterval(checkUpdate, 4 * 60 * 60 * 1000);
 })();
 </script>

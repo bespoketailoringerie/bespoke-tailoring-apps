@@ -7,3 +7,4 @@ tablet/ios/
 *.woff2
 pos/app/customer-sync.js
 tablet/www/customer-sync.js
+tablet/www/capacitor.js

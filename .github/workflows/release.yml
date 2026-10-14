@@ -3,10 +3,10 @@
 # It can also be run by hand from the Actions tab. The POS and the tablet check this repo's
 # latest release for updates.
 name: Build and release
+# Pushing to the test-build branch builds both apps to check them, without publishing anything.
 on:
   push:
-    branches: [main]
-    paths: [VERSION]
+    branches: [main, test-build]
   workflow_dispatch:
 
 permissions:
@@ -18,18 +18,26 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       v: ${{ steps.v.outputs.v }}
+      go: ${{ steps.v.outputs.go }}
     steps:
       - uses: actions/checkout@v4
       - id: v
         run: |
           V="$(tr -d ' \r\n' < VERSION)"
           [[ "$V" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "VERSION must look like 1.2.3, got '$V'"; exit 1; }
-          if git ls-remote --exit-code --tags origin "refs/tags/v$V" >/dev/null; then echo "Version $V is already published. Raise the number in VERSION."; exit 1; fi
           echo "v=$V" >> "$GITHUB_OUTPUT"
+          # On main, build only when VERSION holds a number that isn't published yet.
+          if [ "$GITHUB_REF_NAME" = "main" ] && git ls-remote --exit-code --tags origin "refs/tags/v$V" >/dev/null; then
+            echo "Version $V is already published; nothing to build. Raise the number in VERSION to publish."
+            echo "go=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "go=true" >> "$GITHUB_OUTPUT"
+          fi
 
   pos:
     name: POS (Windows installer)
     needs: version
+    if: needs.version.outputs.go == 'true'
     runs-on: windows-latest
     env:
       VERSION: ${{ needs.version.outputs.v }}
@@ -61,6 +69,7 @@ jobs:
   tablet:
     name: Tablet (Android APK)
     needs: version
+    if: needs.version.outputs.go == 'true'
     runs-on: ubuntu-latest
     env:
       VERSION: ${{ needs.version.outputs.v }}
@@ -92,7 +101,16 @@ jobs:
         run: node ../scripts/copy-fonts.js www/fonts
       - name: Add the customer list sync
         run: cp ../shared/customer-sync.js www/customer-sync.js
+      - name: Add the Capacitor runtime (for the full-screen button)
+        run: |
+          test -f node_modules/@capacitor/core/dist/capacitor.js || { echo "capacitor.js not found in @capacitor/core"; exit 1; }
+          cp node_modules/@capacitor/core/dist/capacitor.js www/capacitor.js
       - run: npx cap add android
+      - name: Full-screen support (hides the Android bars)
+        run: |
+          D=android/app/src/main/java/com/bespoketailoring/tablet
+          test -d "$D" || { echo "Android source folder not where expected"; ls -R android/app/src/main/java; exit 1; }
+          cp android-extra/ImmersivePlugin.java android-extra/MainActivity.java "$D/"
       - name: App icon and splash
         run: npx capacitor-assets generate --android --iconBackgroundColor '#b92f37' --splashBackgroundColor '#f7eeda'
         continue-on-error: true
@@ -126,6 +144,7 @@ jobs:
   release:
     name: Publish release
     needs: [version, pos, tablet]
+    if: github.ref_name == 'main'
     runs-on: ubuntu-latest
     env:
       VERSION: ${{ needs.version.outputs.v }}
