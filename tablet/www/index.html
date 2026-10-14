@@ -984,13 +984,13 @@ label.f > span, .label { font-family: var(--f-mono); font-weight: 700; font-size
       <div class="foot">${ro
         ? `<button class="btn primary" data-act="close">Close</button>`
         : `${d.isNew ? `<button class="btn ghost left" data-act="tag-discard">Discard tag</button>` : `<button class="btn ghost left" data-act="tag-delete">Delete tag</button>`}
-           <button class="btn" data-act="tag-save">Save tag</button><button class="btn primary" data-act="tag-save-close">Close tag &amp; take payment</button>`}</div>`;
+           <button class="btn" data-act="tag-save-close">Close tag &amp; take payment</button><button class="btn primary" data-act="tag-save">Save tag</button>`}</div>`;
   }
 
   function dueHtml(d) {
     const t = d.tag;
     if (d.readOnly) return `<span class="label" style="color:var(--ink)">Due</span><span>${esc(t.due ? new Date(t.due + "T12:00").toLocaleDateString([], { weekday: "long", month: "long", day: "numeric", year: "numeric" }) : "No due date")}${t.rush ? " · Rush, " + esc(rushOf(t)[1]) : ""}</span>`;
-    const quick = [["Tomorrow", 1], ["In 3 days", 3], ["In 1 week", 7], ["In 2 weeks", 14]];
+    const quick = [["Tomorrow", 1], ["In 3 days", 3], ["In 1 week", 7], ["In 2 weeks", 14], ["In 3 weeks", 21]];
     return `<span class="label" style="color:var(--ink)">Due date</span>
       <div class="row"><input type="date" id="tag-due" value="${esc(t.due || "")}" data-in="tagdue" aria-label="Due date">
         ${quick.map(([l, n]) => `<button class="chip" data-act="due-quick" data-n="${n}" aria-pressed="${t.due === dayPlus(n)}">${l}</button>`).join("")}
