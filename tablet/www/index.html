@@ -252,6 +252,25 @@ label.f > span, .label { font-family: var(--f-mono); font-weight: 700; font-size
 .for-whom { padding: 10px 18px; border-bottom: 1px solid var(--gold); display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; flex: none; }
 .for-whom b { font-family: var(--f-display); font-weight: 400; font-size: 19px; }
 
+/* Due date on the tag */
+.tdue { display: grid; gap: 8px; border: 2px solid var(--ink); background: var(--card); padding: 12px 14px; }
+.tdue .row { gap: 8px; }
+.tdue input[type="date"] { background: var(--bg); border: 2px solid var(--red); padding: 6px 10px; min-height: 48px; font-size: 17px; color: var(--ink); border-radius: 0; max-width: 220px; }
+.tdue .chip[aria-pressed="true"] { background: var(--red); color: var(--bg); }
+.tdue.missing { border-color: var(--red); box-shadow: 0 0 0 3px var(--gold); }
+.due-tag { font-family: var(--f-mono); font-weight: 700; font-size: 13px; letter-spacing: 0.06em; }
+.due-tag.late { color: var(--red); }
+.qbadge { display: inline-block; min-width: 20px; margin-left: 8px; padding: 0 6px; background: var(--gold); color: var(--ink); font-size: 12px; line-height: 1.6; letter-spacing: 0; text-align: center; }
+
+/* Tags tab */
+.board { display: grid; gap: 22px; }
+.board .grp { display: grid; gap: 10px; }
+.board .grp > .label { display: flex; gap: 10px; align-items: baseline; }
+.board .grp.late > .label { color: var(--red); }
+.board .grp > .label .n { color: var(--brown); letter-spacing: 0.08em; }
+.tagcard .whom { font-family: var(--f-display); font-size: 21px; color: var(--ink); border: 0; background: none; padding: 0; cursor: pointer; text-align: left; justify-self: start; }
+.tagcard.late { border-color: var(--red); box-shadow: inset 0 0 0 2px var(--gold); }
+
 /* Portrait tablet */
 @media (max-width: 900px) {
   .counter { grid-template-columns: minmax(0, 1fr) 360px; }
@@ -291,6 +310,7 @@ label.f > span, .label { font-family: var(--f-mono); font-weight: 700; font-size
     <div class="brand"><img src="logo.png" alt="Bespoke Tailoring"><span>Register</span></div>
     <nav class="tabs" aria-label="Screens">
       <button data-act="nav" data-v="register" id="tab-register" aria-current="page">Register</button>
+      <button data-act="nav" data-v="tags" id="tab-tags">Tags</button>
       <button data-act="nav" data-v="customers" id="tab-customers">Customers</button>
     </nav>
     <div class="clock" id="clock"></div>
@@ -384,6 +404,15 @@ label.f > span, .label { font-family: var(--f-mono); font-weight: 700; font-size
     for (const o of t.others || []) if (String(o.label || "").trim()) out.push({ key: "other:" + String(o.label).trim().toLowerCase(), name: String(o.label).trim(), measure: o.measure || "", qty: Math.max(1, o.qty || 1) });
     return out;
   }
+  // Due dates are plain calendar days (YYYY-MM-DD). A tag either has one or says "No due date".
+  const dayPlus = (n) => { const d = new Date(); d.setDate(d.getDate() + n); return dayOf(d.toISOString()); };
+  const dueText = (t) => {
+    if (!t.due) return "No due date";
+    const d = new Date(t.due + "T12:00"); const diff = Math.round((d - new Date(today() + "T12:00")) / 864e5);
+    const nice = d.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" });
+    return diff < 0 ? `Overdue · was due ${nice}` : diff === 0 ? `Due today · ${nice}` : diff === 1 ? `Due tomorrow · ${nice}` : `Due ${nice}`;
+  };
+  const isLate = (t) => t.status !== "closed" && t.due && t.due < today();
   const tagStatus = (t) => (t.status === "closed" ? ["done", "Closed"] : t.status === "register" ? ["reg", "At the register"] : ["open", "Open"]);
 
   // ---------- state ----------
@@ -481,7 +510,7 @@ label.f > span, .label { font-family: var(--f-mono); font-weight: 700; font-size
       writeLocal();
       refreshShelf();
     }, () => notice("Couldn't load the sales record. New sales are kept on this tablet until the connection is back."));
-    const refreshPeople = () => { if (UI.view === "customers" && !UI.dialog) render(); };
+    const refreshPeople = () => { if ((UI.view === "customers" || UI.view === "tags") && !UI.dialog) render(); };
     follow("customers", () => customers, (v) => { customers = v; }, refreshPeople);
     follow("tags", () => tags, (v) => { tags = v; }, refreshPeople);
   }
@@ -518,11 +547,13 @@ label.f > span, .label { font-family: var(--f-mono); font-weight: 700; font-size
   }
 
   function render() {
-    for (const v of ["register", "customers"]) {
+    for (const v of ["register", "tags", "customers"]) {
       const b = document.getElementById("tab-" + v);
       if (UI.view === v) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current");
     }
-    main.innerHTML = UI.view === "customers" ? customersView() : registerView();
+    main.innerHTML = UI.view === "customers" ? customersView() : UI.view === "tags" ? tagsView() : registerView();
+    const urgent = tags.filter((t) => t.status !== "closed" && t.due && t.due <= today()).length;
+    document.getElementById("tab-tags").innerHTML = "Tags" + (urgent ? ` <span class="qbadge" title="Due today or overdue">${urgent}</span>` : "");
     renderDialog();
   }
   function renderDialog() {
@@ -608,6 +639,35 @@ label.f > span, .label { font-family: var(--f-mono); font-weight: 700; font-size
       <section class="detail" id="cust-detail" aria-label="Customer">${custDetailHtml()}</section>
     </div>`;
   }
+  // Tags tab: every open tag, soonest due first, grouped by when it's due.
+  function tagsView() {
+    const open = tags.filter((t) => t.status !== "closed");
+    const key = (t) => t.due || "9999-99-99";
+    const sorted = open.slice().sort((a, b) => key(a) < key(b) ? -1 : key(a) > key(b) ? 1 : (a.no || 0) - (b.no || 0));
+    const t0 = today(), t1 = dayPlus(1), t7 = dayPlus(7);
+    const groups = [
+      ["late", "Overdue", (t) => t.due && t.due < t0],
+      ["", "Due today", (t) => t.due === t0],
+      ["", "Due tomorrow", (t) => t.due === t1],
+      ["", "This week", (t) => t.due && t.due > t1 && t.due <= t7],
+      ["", "Later", (t) => t.due && t.due > t7],
+      ["", "No due date", (t) => !t.due],
+    ];
+    const late = open.filter(isLate).length;
+    const body = open.length ? groups.map(([cls, title, test]) => {
+      const list = sorted.filter(test);
+      return list.length ? `<div class="grp ${cls}"><span class="label">${title} <span class="n">${list.length}</span></span>
+        <div class="tagcards">${list.map((t) => tagCardHtml(t, true)).join("")}</div></div>` : "";
+    }).join("") : `<div class="frame"><div class="in">
+        <svg class="glyph" viewBox="0 0 72 72" aria-hidden="true"><rect x="22" y="8" width="28" height="56" fill="none" stroke="var(--red)" stroke-width="2"/><circle cx="36" cy="18" r="4" fill="none" stroke="var(--red)" stroke-width="2"/><path d="M28 32h16M28 40h16M28 48h10" stroke="var(--gold)" stroke-width="2"/></svg>
+        <h3 style="font-size:24px">No open tags</h3>
+        <p class="muted" style="margin:0;max-width:46ch">Open a tag from a customer on the Customers tab. Open tags show here, soonest due first.</p></div></div>`;
+    return `<div class="page"><div class="wrap">
+      <div style="display:flex;gap:12px;align-items:end;flex-wrap:wrap"><div><span class="label">Tags</span><h2>Open tags</h2></div>
+        <span class="muted" style="margin-left:auto">${open.length} open${late ? ` · <b style="color:var(--red)">${late} overdue</b>` : ""}</span></div>
+      <div class="board">${body}</div></div></div>`;
+  }
+
   function custMatches() {
     const q = UI.custQ.trim().toLowerCase(), qd = phoneDigits(q);
     return customers.filter((c) => !q || `${c.name} ${c.email} ${c.phone}`.toLowerCase().includes(q) || (qd.length >= 3 && phoneDigits(c.phone).includes(qd)))
@@ -642,11 +702,14 @@ label.f > span, .label { font-family: var(--f-mono); font-weight: 700; font-size
         <button class="btn primary big" style="width:auto" data-act="tag-new">Open tag</button></div>
       <div class="tagcards">${mine.length ? mine.map(tagCardHtml).join("") : `<div class="empty">No tags yet. Tap <b>Open tag</b> to write up the alterations.</div>`}</div>`;
   }
-  function tagCardHtml(t) {
+  function tagCardHtml(t, showWho) {
     const lines = tagLines(t); const [cls, label] = tagStatus(t);
+    const c = showWho && customers.find((x) => x.id === t.customerId);
     const fmt = (iso) => new Date(iso).toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" });
-    return `<div class="tagcard ${t.status === "closed" ? "closed" : ""}"><div class="in">
+    return `<div class="tagcard ${t.status === "closed" ? "closed" : ""} ${isLate(t) ? "late" : ""}"><div class="in">
+        ${showWho ? `<button class="whom" data-act="tag-who" data-id="${esc(t.customerId)}">${esc(custName(c))}</button>` : ""}
         <div class="top"><b>Tag ${tagNo(t)}</b><span class="pill ${cls}">${label}</span>
+          ${t.status !== "closed" ? `<span class="due-tag ${isLate(t) ? "late" : ""}">${esc(dueText(t))}</span>` : ""}
           <span class="muted small">Opened ${fmt(t.opened)}${t.status === "closed" && t.closedAt ? ` · paid ${fmt(t.closedAt)}` : ""}</span>
           ${t.status === "closed" ? `<span class="money" style="margin-left:auto;font-weight:700">${m(t.total || 0)}</span>` : ""}</div>
         <div class="items">${lines.length ? lines.map((l) => esc(`${l.qty > 1 ? l.qty + " × " : ""}${l.name}${l.measure ? " " + l.measure : ""}`)).join(" · ") : '<span class="muted">Nothing ticked yet</span>'}</div>
@@ -804,7 +867,8 @@ label.f > span, .label { font-family: var(--f-mono); font-weight: 700; font-size
         ${ro ? "" : `<button class="btn small ghost" data-act="tago-del" data-i="${i}" aria-label="Remove this line">✕</button>`}
       </div>`).join("");
     return `<div class="thead"><h2>${esc(custName(c))}</h2><span class="num">Tag ${tagNo(t)}</span>
-        <span class="muted small">${new Date(t.opened).toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" })}</span></div>
+        <span class="muted small">Opened ${new Date(t.opened).toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" })}</span></div>
+      <div class="tdue" id="tdue">${dueHtml(d)}</div>
       ${TAG.map((sec) => `<div class="tsec"><h3>${sec.title}</h3><div class="trows">${sec.rows.map(([k, l]) => row(k, l)).join("")}</div>
         ${sec.id === "coat" ? "" : ""}</div>`).join("")}
       <div class="tsec"><h3>Other</h3><div style="display:grid">${others || (ro ? `<p class="muted small" style="margin:8px 0">None</p>` : "")}</div>
@@ -814,6 +878,16 @@ label.f > span, .label { font-family: var(--f-mono); font-weight: 700; font-size
         ? `<button class="btn primary" data-act="close">Close</button>`
         : `${d.isNew ? `<button class="btn ghost left" data-act="tag-discard">Discard tag</button>` : `<button class="btn ghost left" data-act="tag-delete">Delete tag</button>`}
            <button class="btn" data-act="tag-save">Save tag</button><button class="btn primary" data-act="tag-save-close">Close tag &amp; take payment</button>`}</div>`;
+  }
+
+  function dueHtml(d) {
+    const t = d.tag;
+    if (d.readOnly) return `<span class="label" style="color:var(--ink)">Due</span><span>${esc(t.due ? new Date(t.due + "T12:00").toLocaleDateString([], { weekday: "long", month: "long", day: "numeric", year: "numeric" }) : "No due date")}</span>`;
+    const quick = [["Tomorrow", 1], ["In 3 days", 3], ["In 1 week", 7], ["In 2 weeks", 14]];
+    return `<span class="label" style="color:var(--ink)">Due date</span>
+      <div class="row"><input type="date" id="tag-due" value="${esc(t.due || "")}" data-in="tagdue" aria-label="Due date">
+        ${quick.map(([l, n]) => `<button class="chip" data-act="due-quick" data-n="${n}" aria-pressed="${t.due === dayPlus(n)}">${l}</button>`).join("")}
+        <button class="chip" data-act="due-none" aria-pressed="${!!t.noDue && !t.due}">No due date</button></div>`;
   }
 
   function payHtml(d) {
@@ -963,6 +1037,9 @@ label.f > span, .label { font-family: var(--f-mono); font-weight: 700; font-size
     "tag-save-close": async () => { const t = await storeTag(); if (!t) return; UI.dialog = null; closeTag(t); },
     "tag-close": (el) => { const t = tags.find((x) => x.id === el.dataset.id); if (t) closeTag(t); },
     "tag-discard": () => { UI.dialog = null; render(); },
+    "tag-who": (el) => { UI.custSel = el.dataset.id; UI.view = "customers"; render(); },
+    "due-quick": (el) => { const t = UI.dialog.tag; t.due = dayPlus(Number(el.dataset.n)); t.noDue = false; refreshDue(); },
+    "due-none": () => { const t = UI.dialog.tag; t.due = null; t.noDue = true; refreshDue(); },
     "tag-delete": () => {
       const id = UI.dialog.tag.id; const t = tags.find((x) => x.id === id);
       UI.dialog = { type: "confirm", title: `Delete tag ${t ? tagNo(t) : ""}?`, text: "The tag and everything written on it will be removed from this customer.", yes: "Delete tag",
@@ -1023,8 +1100,9 @@ label.f > span, .label { font-family: var(--f-mono); font-weight: 700; font-size
     render();
     if (thenTag) openNewTag(c); else toast(d.id ? "Saved." : `${custName(c)} added.`);
   }
+  function refreshDue() { const b = document.getElementById("tdue"); if (b) { b.innerHTML = dueHtml(UI.dialog); b.classList.remove("missing"); } }
   function openNewTag(c) {
-    UI.dialog = { type: "tag", isNew: true, tag: { id: uid(), no: null, customerId: c.id, status: "open", opened: new Date().toISOString(), items: {}, others: [], notes: "" } };
+    UI.dialog = { type: "tag", isNew: true, tag: { id: uid(), no: null, customerId: c.id, status: "open", opened: new Date().toISOString(), due: null, noDue: false, items: {}, others: [], notes: "" } };
     renderDialog();
   }
   async function storeTag() {
@@ -1033,6 +1111,12 @@ label.f > span, .label { font-family: var(--f-mono); font-weight: 700; font-size
     if (t.others.some((o) => !String(o.label || "").trim())) { toast("Name each extra alteration, or remove the line.", true); return null; }
     for (const [k, r] of Object.entries(t.items)) if (!r.on && !String(r.measure || "").trim() && (r.qty || 1) === 1) delete t.items[k];
     if (!tagLines(t).length && !String(t.notes || "").trim()) { toast("Tick at least one alteration or write a note first.", true); return null; }
+    // Tags saved before due dates existed count as "No due date".
+    if (t.due === undefined && t.no) t.noDue = true;
+    if (!t.due && !t.noDue) {
+      const b = document.getElementById("tdue"); if (b) { b.classList.add("missing"); b.scrollIntoView({ block: "center", behavior: "smooth" }); }
+      toast("Pick a due date, or tap No due date.", true); return null;
+    }
     if (!t.no) { t.no = settings.nextTag++; await saveSettings(); }
     const i = tags.findIndex((x) => x.id === t.id);
     if (i >= 0) tags[i] = t; else tags.push(t);
@@ -1110,6 +1194,12 @@ label.f > span, .label { font-family: var(--f-mono); font-weight: 700; font-size
     }
     if (kind === "tago") { UI.dialog.tag.others[Number(el.dataset.i)][el.dataset.k] = el.value; return; }
     if (kind === "tagn") { UI.dialog.tag.notes = el.value; return; }
+    if (kind === "tagdue") {
+      const t = UI.dialog.tag; t.due = /^\d{4}-\d{2}-\d{2}$/.test(el.value) ? el.value : null; if (t.due) t.noDue = false;
+      const b = document.getElementById("tdue");
+      if (b) { b.classList.remove("missing"); b.querySelectorAll(".chip").forEach((c) => c.setAttribute("aria-pressed", c.dataset.act === "due-quick" ? String(t.due === dayPlus(Number(c.dataset.n))) : String(!t.due && !!t.noDue))); }
+      return;
+    }
     const val = el.type === "checkbox" ? el.checked : el.value;
     if (kind === "svc") { UI.dialog.rows[Number(el.dataset.i)][el.dataset.k] = val; return; }
     UI.dialog[el.dataset.k] = val;
