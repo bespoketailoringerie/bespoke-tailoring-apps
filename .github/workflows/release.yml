@@ -56,7 +56,7 @@ jobs:
       - name: Bundle the shop fonts
         run: node ../scripts/copy-fonts.js app/fonts
       - name: Add the customer list sync
-        run: cp ../shared/customer-sync.js app/customer-sync.js
+        run: cp ../shared/customer-sync.js ../shared/tag-sync.js app/
       - run: npm run dist
       - uses: actions/upload-artifact@v4
         with:
@@ -100,7 +100,7 @@ jobs:
       - name: Bundle the shop fonts
         run: node ../scripts/copy-fonts.js www/fonts
       - name: Add the customer list sync
-        run: cp ../shared/customer-sync.js www/customer-sync.js
+        run: cp ../shared/customer-sync.js ../shared/tag-sync.js www/
       - name: Add the Capacitor runtime (for the full-screen button)
         run: |
           test -f node_modules/@capacitor/core/dist/capacitor.js || { echo "capacitor.js not found in @capacitor/core"; exit 1; }

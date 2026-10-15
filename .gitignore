@@ -6,5 +6,7 @@ tablet/ios/
 *.keystore
 *.woff2
 pos/app/customer-sync.js
+pos/app/tag-sync.js
 tablet/www/customer-sync.js
+tablet/www/tag-sync.js
 tablet/www/capacitor.js

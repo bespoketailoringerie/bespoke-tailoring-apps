@@ -353,6 +353,7 @@ label.f > span, .label { font-family: var(--f-mono); font-weight: 700; font-size
 
 <script src="capacitor.js"></script>
 <script src="customer-sync.js"></script>
+<script src="tag-sync.js"></script>
 <script src="version.js"></script>
 <script>
 (() => {
@@ -512,7 +513,8 @@ label.f > span, .label { font-family: var(--f-mono); font-weight: 700; font-size
   const readLocal = () => { try { return JSON.parse(localStorage.getItem(LS) || "null"); } catch { return null; } };
   let syncState = { cursor: null, outbox: [] };
   let link = { base: "https://ilovemisspookie.netlify.app", key: "" };   // this tablet's connection to the website
-  const writeLocal = () => { try { localStorage.setItem(LS, JSON.stringify({ settings, sales, customers, tags, syncState, link })); } catch {} };
+  let tagState = { cursor: null, dirty: [], deletes: [] };   // tags waiting to go to the website
+  const writeLocal = () => { try { localStorage.setItem(LS, JSON.stringify({ settings, sales, customers, tags, syncState, tagState, link })); } catch {} };
 
   async function saveSettings() {
     writeLocal();
@@ -530,6 +532,7 @@ label.f > span, .label { font-family: var(--f-mono); font-weight: 700; font-size
   // Customers and tags: one document each, kept on this tablet and in the shared record when signed in.
   async function saveDoc(col, obj) {
     obj.updated = new Date().toISOString();
+    if (col === "tags" && tagSync) tagSync.touched(obj);
     writeLocal();
     if (store !== "db") return;
     try { await db.collection(col).doc(obj.id).set(obj); }
@@ -572,15 +575,65 @@ label.f > span, .label { font-family: var(--f-mono); font-weight: 700; font-size
         changed: () => { writeLocal(); linkBadge(); if ((UI.view === "customers" || UI.view === "tags") && !UI.dialog) render(); else if (UI.dialog && UI.dialog.type === "link") renderDialog(); },
       },
     });
+    startTagSync();
     linkBadge();
-    if (link.key) sync.syncNow();
-    setInterval(() => { if (link.key && document.visibilityState === "visible") sync.syncNow(); }, 60 * 1000);
-    document.addEventListener("visibilitychange", () => { if (link.key && document.visibilityState === "visible") sync.syncNow(); });
+    if (link.key) syncAll();
+    setInterval(() => { if (link.key && document.visibilityState === "visible") syncAll(); }, 60 * 1000);
+    document.addEventListener("visibilitychange", () => { if (link.key && document.visibilityState === "visible") syncAll(); });
+  }
+  // Customers first, then tags (a new customer needs its website id before its tags can go up).
+  const syncAll = () => (tagSync ? tagSync.syncNow() : sync.syncNow());
+
+  // ---------- alteration tags on the website (installed app) ----------
+  // Every tag saved, sent to the register, paid or deleted here goes to the website, so the shop
+  // computer (and any other register) sees it. Tags changed elsewhere come back.
+  let tagSync = null;
+  function startTagSync() {
+    if (!window.TagSync || !sync) return;
+    tagSync = window.TagSync.createTagSync({
+      base: link.base, key: link.key, before: () => sync.syncNow(),
+      adapter: {
+        tags: () => tags,
+        toWire: (t) => {
+          if (!t.no) return null;                                       // never saved
+          const c = customers.find((x) => x.id === t.customerId);
+          if (c && !c.remoteId && !c.unlinked) return null;             // its customer isn't on the website yet
+          const { sum, unset } = tagTotal(t);
+          const lines = tagLines(t).map((l) => ({ name: l.name, measure: l.measure, qty: l.qty, price: l.key.startsWith("other:") ? 0 : priceFor(l.key) }));
+          const rush = rushOf(t); if (rush) lines.push({ name: `Rush: ${rush[1]}`, measure: "", qty: 1, price: rush[2] * 100 });
+          return {
+            id: t.id, no: t.no, customerId: (c && c.remoteId) || null,
+            customer: c ? { name: c.name || "", phone: c.phone || "", email: c.email || "" } : {},
+            status: t.status, opened: t.opened, due: t.due || null, noDue: !!t.noDue, rush: t.rush || null,
+            items: t.items || {}, others: t.others || [], notes: t.notes || "",
+            lines, total: t.status === "closed" && t.total ? t.total : sum, unpriced: unset,
+            closedAt: t.closedAt || null, receiptNo: t.receiptNo != null ? String(t.receiptNo) : null,
+            edited: t.updated || t.opened,
+          };
+        },
+        fromWire: (w) => {
+          let c = w.customerId ? customers.find((x) => x.remoteId === w.customerId) : null;
+          if (!c && w.customerId) { c = { id: uid(), created: new Date().toISOString(), source: "website", remoteId: w.customerId, name: w.customer.name, phone: w.customer.phone, email: w.customer.email }; customers.push(c); }
+          let t = tags.find((x) => x.id === w.id);
+          if (!t) { t = { id: w.id }; tags.push(t); }
+          Object.assign(t, { no: w.no, status: w.status, opened: w.opened, due: w.due, noDue: w.noDue, rush: w.rush || 0, items: w.items, others: w.others, notes: w.notes, closedAt: w.closedAt, receiptNo: w.receiptNo, rev: w.rev, updated: w.edited });
+          if (c) t.customerId = c.id;
+          if (w.status === "closed" && w.total) t.total = w.total;
+          if (w.no && w.no >= settings.nextTag) settings.nextTag = w.no + 1;
+        },
+        removeLocal: (id) => { tags = tags.filter((x) => x.id !== id); },
+        state: () => tagState,
+        saveState: (st) => { tagState = st; writeLocal(); },
+        changed: () => { writeLocal(); linkBadge(); if ((UI.view === "customers" || UI.view === "tags") && !UI.dialog) render(); },
+      },
+    });
+    // The first time, send every tag already on this tablet.
+    if (!tagState.seeded) { tagState.dirty = [...new Set([...(tagState.dirty || []), ...tags.filter((t) => t.no).map((t) => t.id)])]; tagState.seeded = true; writeLocal(); }
   }
   function linkBadge() {
     const b = document.getElementById("link-btn"); if (!b || !sync) return;
     b.hidden = false;
-    const st = sync.status.state, n = sync.pending();
+    const st = sync.status.state, n = sync.pending() + (tagSync ? tagSync.pending() : 0);
     const [cls, text] = !link.key ? ["", "Connect customer list"] : st === "ok" ? ["ok", n ? `${n} to send` : "Customer list"] : st === "syncing" ? ["warn", "Syncing…"] : st === "badkey" ? ["bad", "Check key"] : st === "offline" ? ["warn", n ? `Offline · ${n} waiting` : "Offline"] : ["warn", "Customer list"];
     b.className = "linkbtn " + cls; b.innerHTML = `<i></i>${esc(text)}`;
   }
@@ -625,7 +678,7 @@ label.f > span, .label { font-family: var(--f-mono); font-weight: 700; font-size
 
   async function connect() {
     const local = readLocal();
-    if (local) { settings = { ...settings, ...local.settings }; sales = local.sales || []; customers = local.customers || []; syncState = local.syncState || syncState; link = { ...link, ...(local.link || {}) }; tags = local.tags || []; }
+    if (local) { settings = { ...settings, ...local.settings }; sales = local.sales || []; customers = local.customers || []; syncState = local.syncState || syncState; tagState = local.tagState || tagState; link = { ...link, ...(local.link || {}) }; tags = local.tags || []; }
     settings.tagPrices = settings.tagPrices || {}; settings.nextTag = settings.nextTag || START_TAG;
     try { db = await window.claude?.use?.("db"); } catch { db = null; }
     if (!db) {
@@ -1244,7 +1297,7 @@ label.f > span, .label { font-family: var(--f-mono); font-weight: 700; font-size
     "tag-discard": () => { UI.dialog = null; render(); },
     "fullscreen": async () => { const ok = await setFullscreen(!fsOn); if (!ok) toast("Full screen isn't available here.", true); },
     "link-open": () => { UI.dialog = { type: "link", key: link.key, base: link.base }; renderDialog(); },
-    "link-sync": async () => { if (sync) { renderDialog(); await sync.syncNow(); renderDialog(); } },
+    "link-sync": async () => { if (sync) { renderDialog(); await syncAll(); renderDialog(); } },
     "link-save": async () => {
       const d = UI.dialog; const key = String(d.key || "").trim(), base = String(d.base || "").trim().replace(/\/+$/, "");
       if (!key) return toast("Paste in the tablet key first.", true);
@@ -1253,11 +1306,12 @@ label.f > span, .label { font-family: var(--f-mono); font-weight: 700; font-size
       link = { base, key }; writeLocal();
       if (!sync) return toast("The customer list connects in the installed tablet app.", true);
       sync.configure({ base, key }); if (changedKey) sync.reset();
-      toast("Connecting…"); const st = await sync.syncNow();
+      if (tagSync) { tagSync.configure({ base, key }); if (changedKey) tagSync.reset(); }
+      toast("Connecting…"); const st = await sync.syncNow(); if (tagSync && st.state === "ok") tagSync.syncNow();
       if (st.state === "ok") { UI.dialog = null; renderDialog(); render(); toast(`Connected. ${customers.length} customer${customers.length === 1 ? "" : "s"} on this tablet.`); }
       else { renderDialog(); toast(st.error || "Couldn't connect.", true); }
     },
-    "link-off": () => { UI.dialog = { type: "confirm", title: "Disconnect from the customer list?", text: "Customers stay on this tablet. New customers and sales won't reach the website until you connect again.", yes: "Disconnect", run: () => { link.key = ""; writeLocal(); if (sync) sync.configure({ key: "" }); linkBadge(); toast("Disconnected."); } }; renderDialog(); },
+    "link-off": () => { UI.dialog = { type: "confirm", title: "Disconnect from the customer list?", text: "Customers stay on this tablet. New customers and sales won't reach the website until you connect again.", yes: "Disconnect", run: () => { link.key = ""; writeLocal(); if (sync) sync.configure({ key: "" }); if (tagSync) tagSync.configure({ key: "" }); linkBadge(); toast("Disconnected."); } }; renderDialog(); },
     "search-clear": (el) => {
       const input = document.getElementById(el.dataset.for); if (!input) return;
       input.value = ""; input.dispatchEvent(new Event("input", { bubbles: true })); input.focus();
@@ -1270,7 +1324,7 @@ label.f > span, .label { font-family: var(--f-mono); font-weight: 700; font-size
     "tag-delete": () => {
       const id = UI.dialog.tag.id; const t = tags.find((x) => x.id === id);
       UI.dialog = { type: "confirm", title: `Delete tag ${t ? tagNo(t) : ""}?`, text: "The tag and everything written on it will be removed from this customer.", yes: "Delete tag",
-        run: async () => { tags = tags.filter((x) => x.id !== id); writeLocal(); if (store === "db") db.collection("tags").doc(id).delete().catch(() => {}); render(); toast("Tag deleted."); } };
+        run: async () => { tags = tags.filter((x) => x.id !== id); if (tagSync) tagSync.deleted(id); writeLocal(); if (store === "db") db.collection("tags").doc(id).delete().catch(() => {}); render(); toast("Tag deleted."); } };
       renderDialog();
     },
     "line-price": (el) => {

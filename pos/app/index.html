@@ -28,6 +28,16 @@
   .roster .who-list { max-height: 50vh; }
   .people .detail { overflow: visible; padding: 18px 16px 32px; }
 }
+
+/* Alteration tags on the Customers tab */
+.tagcards { display: grid; gap: 12px; }
+.tagcard { border: 2px solid var(--red); padding: 5px; background: var(--card); }
+.tagcard > .in { border: 1px solid var(--gold); padding: 12px 14px; display: grid; gap: 6px; }
+.tagcard.closed { opacity: 0.7; border-color: var(--rule); }
+.tagcard .top { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.tagcard .top b { font-family: var(--f-display); font-weight: 400; font-size: 20px; color: var(--red); }
+.tagcard .items { overflow-wrap: anywhere; }
+.tagcard .late { color: var(--red); font-weight: 600; }
 </style></head><body>
 <title>Bespoke Register</title>
 <link rel="stylesheet" href="fonts/fonts.css">
@@ -348,6 +358,7 @@ table.mkup td { padding-block: 6px; }
 </style>
 <div id="app"></div>
 <script src="customer-sync.js"></script>
+<script src="tag-sync.js"></script>
 <script>// Money math for the register. All amounts are whole cents.
 (function (root) {
   const pct = (v) => Math.max(0, Math.min(100, Number(v) || 0));
@@ -621,6 +632,7 @@ window.DEFAULT_PRICE_LIST = {"name":"Dress","updated":"Aug 13, 2026, 5:29 PM","c
       },
       items: [], customers: [], sales: [], returns: [], stockLog: [],
       staff: [], punches: [], notes: [], drawers: [], shifts: [],
+      tags: [], tagSync: null,
       priceList: null,
     };
   }
@@ -631,7 +643,7 @@ window.DEFAULT_PRICE_LIST = {"name":"Dress","updated":"Aug 13, 2026, 5:29 PM","c
     if (!Array.isArray(S.settings.fixedCards)) S.settings.fixedCards = [{ name: "Custom Shirt", price: 14900 }];
     S.settings.markup = { byType: {}, fallback: null, round: "5", ...(S.settings.markup || {}) };
     if (!S.priceList && window.DEFAULT_PRICE_LIST) S.priceList = JSON.parse(JSON.stringify(window.DEFAULT_PRICE_LIST));
-    for (const k of ["items", "customers", "sales", "returns", "stockLog", "staff", "punches", "notes", "drawers", "shifts"]) if (!Array.isArray(S[k])) S[k] = [];
+    for (const k of ["items", "customers", "sales", "returns", "stockLog", "staff", "punches", "notes", "drawers", "shifts", "tags"]) if (!Array.isArray(S[k])) S[k] = [];
     if (!S.sync || typeof S.sync !== "object") S.sync = { cursor: null, outbox: [] };
   }
 
@@ -786,8 +798,35 @@ window.DEFAULT_PRICE_LIST = {"name":"Dress","updated":"Aug 13, 2026, 5:29 PM","c
         changed: () => { persist(); const el = document.getElementById("sync-status"); if (el) el.textContent = syncLine(); if (UI.view === "customers" && !UI.dialog) render(); },
       },
     });
-    if (S.settings.syncKey) sync.syncNow();
-    setInterval(() => { sync.configure({ base: S.settings.websiteUrl, key: S.settings.syncKey }); if (S.settings.syncKey) sync.syncNow(); }, 2 * 60 * 1000);
+    startTagSync();
+    if (S.settings.syncKey) syncAll();
+    setInterval(() => { configureSync(); if (S.settings.syncKey) syncAll(); }, 2 * 60 * 1000);
+  }
+  // Customers first, then the tablet's alteration tags.
+  const syncAll = () => (tagSync ? tagSync.syncNow() : sync.syncNow());
+  function configureSync() {
+    sync.configure({ base: S.settings.websiteUrl, key: S.settings.syncKey });
+    if (tagSync) tagSync.configure({ base: S.settings.websiteUrl, key: S.settings.syncKey });
+  }
+
+  // ---------- alteration tags from the website ----------
+  // Tags are written on the tablet. This computer keeps a copy of the website's list so each
+  // customer's tags show on the Customers tab (it doesn't change them).
+  let tagSync = null;
+  function startTagSync() {
+    if (!window.TagSync) return;
+    tagSync = window.TagSync.createTagSync({
+      base: S.settings.websiteUrl, key: S.settings.syncKey, before: () => sync.syncNow(),
+      adapter: {
+        tags: () => S.tags,
+        toWire: () => null,
+        fromWire: (w) => { const i = S.tags.findIndex((x) => x.id === w.id); if (i >= 0) S.tags[i] = w; else S.tags.push(w); },
+        removeLocal: (id) => { S.tags = S.tags.filter((x) => x.id !== id); },
+        state: () => S.tagSync,
+        saveState: (st) => { S.tagSync = st; },
+        changed: () => { persist(); if (UI.view === "customers" && !UI.dialog) render(); },
+      },
+    });
   }
   function syncLine() {
     if (PREVIEW) return "Connects in the installed app.";
@@ -858,6 +897,29 @@ window.DEFAULT_PRICE_LIST = {"name":"Dress","updated":"Aug 13, 2026, 5:29 PM","c
   const phoneDigits = (v) => { const d = String(v ?? "").replace(/\D/g, ""); return d.length === 11 && d[0] === "1" ? d.slice(1) : d; };
   const cleanEmail = (v) => { const e = String(v ?? "").trim().toLowerCase(); return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e) ? e : ""; };
   const salesOf = (c) => S.sales.filter((x) => x.customer && x.customer.id === c.id);
+  // A customer's tags: matched by their website id, or by phone/email for a tag whose customer
+  // isn't linked to the website list.
+  const tagsOf = (c) => S.tags.filter((t) => (t.customerId && c.remoteId && t.customerId === c.remoteId)
+    || (!t.customerId && t.customer && ((t.customer.phone && phoneDigits(t.customer.phone) === phoneDigits(c.phone)) || (t.customer.email && c.email && t.customer.email.toLowerCase() === c.email.toLowerCase()))));
+  const tagLate = (t) => t.status !== "closed" && t.due && t.due < today();
+  function tagDue(t) {
+    if (!t.due) return "No due date";
+    const d = new Date(t.due + "T12:00"), diff = Math.round((d - new Date(today() + "T12:00")) / 864e5);
+    const nice = d.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" });
+    return diff < 0 ? `Overdue · was due ${nice}` : diff === 0 ? `Due today · ${nice}` : diff === 1 ? `Due tomorrow · ${nice}` : `Due ${nice}`;
+  }
+  function tagCardHtml(t) {
+    const [cls, label] = t.status === "closed" ? ["good", "Paid"] : t.status === "register" ? ["warn", "Being paid on the tablet"] : tagLate(t) ? ["bad", "Overdue"] : ["plain", "Open"];
+    const fmt = (iso) => new Date(iso).toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" });
+    return `<div class="tagcard ${t.status === "closed" ? "closed" : ""}"><div class="in">
+        <div class="top"><b>Tag #${t.no || "?"}</b><span class="pill ${cls}">${label}</span>
+          ${t.status !== "closed" ? `<span class="small ${tagLate(t) ? "late" : "muted"}">${esc(tagDue(t))}${t.rush ? " · RUSH" : ""}</span>` : ""}
+          <span class="money" style="margin-left:auto;font-weight:700">${m(t.total || 0)}${t.status !== "closed" && t.unpriced && t.unpriced.length ? "+" : ""}</span></div>
+        <div class="items">${t.lines && t.lines.length ? t.lines.map((l) => esc(`${l.qty > 1 ? l.qty + " × " : ""}${l.name}${l.measure ? " " + l.measure : ""}`)).join(" · ") : '<span class="muted">Nothing ticked yet</span>'}</div>
+        ${t.notes ? `<div class="small muted" style="white-space:pre-wrap">${esc(t.notes)}</div>` : ""}
+        <div class="small muted">Opened ${fmt(t.opened)}${t.status === "closed" && t.closedAt ? ` · paid ${fmt(t.closedAt)}${t.receiptNo ? ` · tablet receipt T-${esc(t.receiptNo)}` : ""}` : ""}${t.status !== "closed" && t.unpriced && t.unpriced.length ? ` · price to set: ${esc(t.unpriced.join(", "))}` : ""}</div>
+      </div></div>`;
+  }
   const searchBox = (id, kind, value, placeholder) => `<div class="searchbox">
       <input type="text" id="${id}" placeholder="${esc(placeholder)}" value="${esc(value)}" data-in="${kind}" autocomplete="off" aria-label="${esc(placeholder)}">
       <button type="button" class="clear" data-act="search-clear" data-for="${id}" aria-label="Clear search" ${value ? "" : "hidden"}>✕</button></div>`;
@@ -884,7 +946,8 @@ window.DEFAULT_PRICE_LIST = {"name":"Dress","updated":"Aug 13, 2026, 5:29 PM","c
     if (!S.customers.length) return `<div class="empty" style="margin:16px">No customers yet. Click <b>New customer</b> to add the first one.</div>`;
     if (!list.length) return `<div class="empty" style="margin:16px">No one matches “${esc(UI.custQ)}”.</div>`;
     return list.map((c) => `<button data-act="cust-sel" data-id="${esc(c.id)}" aria-current="${UI.custSel === c.id}">
-        <b>${esc(custName(c))}</b><span class="sub">${esc([c.phone, c.email].filter(Boolean).join(" · "))}</span></button>`).join("");
+        <b>${esc(custName(c))}</b><span class="sub">${esc([c.phone, c.email].filter(Boolean).join(" · "))}</span>
+        ${(() => { const n = tagsOf(c).filter((t) => t.status !== "closed").length; return n ? `<span><span class="pill plain">${n} open tag${n === 1 ? "" : "s"}</span></span>` : ""; })()}</button>`).join("");
   }
   function custDetailHtml() {
     const c = S.customers.find((x) => x.id === UI.custSel);
@@ -902,6 +965,11 @@ window.DEFAULT_PRICE_LIST = {"name":"Dress","updated":"Aug 13, 2026, 5:29 PM","c
             : mine.length ? `<div class="spentrow"><span>Spent here <b>${m(here)}</b></span><span>${mine.length} sale${mine.length === 1 ? "" : "s"}</span></div>` : ""}</div>
         <button class="btn ghost" data-act="cust-edit">Edit details</button>
         <button class="btn primary big" style="width:auto" data-act="cust-ring">Start a sale</button></div>
+      ${(() => {
+        const mine = tagsOf(c).sort((a, b) => (a.status === "closed") - (b.status === "closed") || (a.opened < b.opened ? 1 : -1));
+        return `<h3>Alteration tags</h3>${mine.length ? `<div class="tagcards">${mine.map(tagCardHtml).join("")}</div>`
+          : `<div class="empty">${S.settings.syncKey || PREVIEW ? "No tags for this customer. Tags are written on the tablet and show here once it syncs." : "Tags written on the tablet show here once this computer is connected to the website's customer list (Settings)."}</div>`}`;
+      })()}
       <h3>Purchases on this register</h3>
       ${mine.length ? `<div class="tablewrap"><table><thead><tr><th>Date</th><th>Receipt</th><th>Items</th><th class="r">Total</th><th></th></tr></thead><tbody>${mine.map((x) => `
         <tr class="click ${x.voided ? "void" : ""}" data-act="sale-open" data-id="${x.id}"><td>${new Date(x.date).toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" })}</td><td class="num">#${x.no}</td>
@@ -2120,10 +2188,14 @@ window.DEFAULT_PRICE_LIST = {"name":"Dress","updated":"Aug 13, 2026, 5:29 PM","c
     "sync-now": async () => {
       if (PREVIEW) return toast("In the installed app, this connects to the website's customer list.");
       if (!S.settings.syncKey) return toast("Paste this computer's key in first.", true);
-      sync.configure({ base: S.settings.websiteUrl, key: S.settings.syncKey });
+      configureSync();
       const el = document.getElementById("sync-status"); if (el) el.textContent = "Syncing…";
       const st = await sync.syncNow();
-      if (st.state === "ok") toast(`Customer list synced. ${S.customers.length} customer${S.customers.length === 1 ? "" : "s"} on this computer.`); else toast(st.error, true);
+      if (st.state !== "ok") return toast(st.error, true);
+      const ts = tagSync ? await tagSync.syncNow() : { state: "ok" };
+      if (ts.state === "unavailable") toast(`Customer list synced. ${S.customers.length} customer${S.customers.length === 1 ? "" : "s"} on this computer.`);
+      else if (ts.state === "ok") toast(`Synced. ${S.customers.length} customer${S.customers.length === 1 ? "" : "s"} and ${S.tags.length} tag${S.tags.length === 1 ? "" : "s"} on this computer.`);
+      else toast(ts.error, true);
     },
     "cust-save": () => {
       const d = UI.dialog;
@@ -2585,7 +2657,14 @@ window.DEFAULT_PRICE_LIST = {"name":"Dress","updated":"Aug 13, 2026, 5:29 PM","c
       if (d.getDay() >= 4) S.shifts.push({ id: uid(), staffId: "st2", day, start: d.getDay() === 6 ? h[0] : "12:00", end: h[1], note: d.getDay() === 6 ? "Fittings" : "" });
     }
     S.drawers.push({ id: uid(), day: today(), kind: "open", at: at(0, 11, 2), by: "st2", counts: { "$20": 5, "$10": 3, "$5": 4 }, counted: 15000, expected: null, note: "" });
-    S.customers.push({ id: "c1", name: "Margaret Ellis", email: "margaret.ellis@example.com", phone: "(814) 555-0142" }, { id: "c2", name: "David Okafor", email: "d.okafor@example.com", phone: "" });
+    // Example tags, as if synced from the tablet.
+    const dIn = (n) => { const d = new Date(); d.setDate(d.getDate() + n); return dayOf(d.toISOString()); };
+    S.tags.push(
+      { id: "ex-tag-1", no: 1042, customerId: "a".repeat(24), customer: { name: "Margaret Ellis" }, status: "open", opened: new Date(Date.now() - 3 * 864e5).toISOString(), due: dIn(4), rush: null,
+        lines: [{ name: "Pants: Hem", measure: "1 1/4\"", qty: 2, price: 1500 }, { name: "Jacket: Shorten sleeves", measure: "3/4\"", qty: 1, price: 2500 }], total: 5500, unpriced: [], notes: "Navy suit. Customer will pick up after 3pm.", rev: 1, edited: new Date().toISOString() },
+      { id: "ex-tag-2", no: 1007, customerId: "a".repeat(24), customer: { name: "Margaret Ellis" }, status: "closed", opened: new Date(Date.now() - 30 * 864e5).toISOString(), due: dIn(-25), closedAt: new Date(Date.now() - 24 * 864e5).toISOString(), receiptNo: "1003",
+        lines: [{ name: "Dress: Hem", measure: "", qty: 1, price: 4500 }], total: 4500, unpriced: [], notes: "", rev: 2, edited: new Date().toISOString() });
+    S.customers.push({ id: "c1", remoteId: "a".repeat(24), name: "Margaret Ellis", email: "margaret.ellis@example.com", phone: "(814) 555-0142" }, { id: "c2", name: "David Okafor", email: "d.okafor@example.com", phone: "" });
     // Two example sales so the Sales and Returns screens have something to show.
     const [blazer, shirt, tie] = S.items;
     const mk = (cust, cart, pay, mins) => {

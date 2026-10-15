@@ -21,3 +21,18 @@ devices pick it up from there. The number must go up each time.
 The tablet app is signed with the key stored in this repo's secrets (`ANDROID_KEYSTORE_B64`,
 `ANDROID_KEYSTORE_PASSWORD`). Every version must use the same key or Android won't install it over
 the old one, so keep the backup copy of that key safe.
+
+## Syncing with the website
+
+Both registers keep their own copy of everything so they work offline, and sync with the website
+using their register key:
+
+- `shared/customer-sync.js` — customers and customer spending (`/api/customer-sync`)
+- `shared/tag-sync.js` — alteration tags (`/api/tag-sync`). The tablet writes tags; the shop computer
+  shows each customer's tags on its Customers tab. Every change carries the version it was based on,
+  so if two registers change the same tag the website keeps one copy (a paid tag stays paid, otherwise
+  the newer edit) and both registers end up with it.
+
+The website keeps all tag storage in `netlify/functions/_tags.mjs`, so tags can move to a database
+later without changing these files.
+
