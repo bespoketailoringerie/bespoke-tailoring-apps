@@ -1,4 +1,34 @@
-<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}
+/* Customers tab (from the tablet): customer list on the left, the chosen customer on the right. */
+.people { display: grid; grid-template-columns: 380px minmax(0, 1fr); height: calc(100vh - var(--chrome, 140px)); min-height: 360px; }
+.people .roster { border-right: 2px solid var(--red); background: var(--card); display: flex; flex-direction: column; min-height: 0; }
+.roster .find { padding: 14px 16px; display: grid; gap: 10px; border-bottom: 1px solid var(--gold); flex: none; }
+.roster .who-list { overflow: auto; min-height: 0; flex: 1 1 auto; }
+.who-list button { display: grid; gap: 2px; width: 100%; text-align: left; border: 0; border-bottom: 1px solid var(--rule); background: none; padding: 12px 16px; min-height: 60px; cursor: pointer; }
+.who-list button:hover { background: var(--bg); }
+.who-list button[aria-current="true"] { background: var(--gold-soft); box-shadow: inset 5px 0 0 var(--red); }
+.who-list b { font-family: var(--f-display); font-weight: 400; font-size: 19px; overflow-wrap: anywhere; }
+.who-list .sub { font-size: 14px; color: var(--brown); overflow-wrap: anywhere; }
+.people .detail { overflow: auto; min-height: 0; padding: 24px 24px 40px; display: grid; gap: 18px; align-content: start; }
+.detail .who-head { display: flex; gap: 12px; align-items: flex-start; flex-wrap: wrap; }
+.detail .who-head > div { min-width: 0; flex: 1 1 280px; display: grid; gap: 4px; }
+.detail .who-head h2 { overflow-wrap: anywhere; }
+.spentrow { display: flex; gap: 8px 18px; flex-wrap: wrap; font-family: var(--f-mono); font-size: 14px; }
+.spentrow b { color: var(--red); }
+.searchbox { position: relative; }
+.searchbox input[type="text"] { padding-right: 48px; }
+.searchbox .clear { position: absolute; right: 2px; top: 50%; transform: translateY(-50%); width: 40px; height: 40px; border: 0; background: none; color: var(--brown); font-size: 18px; cursor: pointer; border-radius: 50%; }
+.searchbox .clear:hover { background: var(--gold-soft); color: var(--red); }
+.people .glyph { width: 72px; height: 72px; }
+.people .frame > .in { padding: 28px; display: grid; gap: 10px; justify-items: start; }
+@media (max-width: 1100px) { .people { grid-template-columns: 300px minmax(0, 1fr); } }
+@media (max-width: 760px) {
+  .people { grid-template-columns: 1fr; height: auto; }
+  .people .roster { border-right: 0; border-bottom: 2px solid var(--red); }
+  .roster .who-list { max-height: 50vh; }
+  .people .detail { overflow: visible; padding: 18px 16px 32px; }
+}
+</style></head><body>
 <title>Bespoke Register</title>
 <link rel="stylesheet" href="fonts/fonts.css">
 <style>/* Layout: the website's red header band (logo left, cream tabs) over a cream counter:
@@ -555,6 +585,7 @@ window.DEFAULT_PRICE_LIST = {"name":"Dress","updated":"Aug 13, 2026, 5:29 PM","c
     stockOpen: {}, stockFilter: "all", stockSearch: "",
     salesDate: today(),
     retQuery: "", retSale: null, retPick: {}, retRestock: {},
+    custQ: "", custSel: null,
   };
 
   function defaults() {
@@ -752,7 +783,7 @@ window.DEFAULT_PRICE_LIST = {"name":"Dress","updated":"Aug 13, 2026, 5:29 PM","c
         removeCustomer: (c) => { S.customers = S.customers.filter((x) => x !== c); if (UI.customer && UI.customer.id === c.id) UI.customer = null; },
         state: () => S.sync,
         saveState: (st) => { S.sync = st; },
-        changed: () => { persist(); const el = document.getElementById("sync-status"); if (el) el.textContent = syncLine(); },
+        changed: () => { persist(); const el = document.getElementById("sync-status"); if (el) el.textContent = syncLine(); if (UI.view === "customers" && !UI.dialog) render(); },
       },
     });
     if (S.settings.syncKey) sync.syncNow();
@@ -770,7 +801,7 @@ window.DEFAULT_PRICE_LIST = {"name":"Dress","updated":"Aug 13, 2026, 5:29 PM","c
   const custOf = (snap) => snap && S.customers.find((x) => x.id === snap.id);
 
   // ---------- render ----------
-  const VIEWS = [["register", "Register"], ["returns", "Returns"], ["stock", "Stock"], ["sales", "Sales"], ["staff", "Staff"], ["settings", "Settings"]];
+  const VIEWS = [["register", "Register"], ["customers", "Customers"], ["returns", "Returns"], ["stock", "Stock"], ["sales", "Sales"], ["staff", "Staff"], ["settings", "Settings"]];
   // Height of the header and notice band, so the sale panel can fill the rest of the window.
   function setChrome() {
     const bar = document.querySelector(".bar"), note = document.querySelector(".notice");
@@ -818,7 +849,88 @@ window.DEFAULT_PRICE_LIST = {"name":"Dress","updated":"Aug 13, 2026, 5:29 PM","c
     if (UI.view === "sales") return salesView();
     if (UI.view === "settings") return settingsView();
     if (UI.view === "staff") return staffView();
+    if (UI.view === "customers") return customersView();
     return registerView();
+  }
+
+  // ---------- Customers (the tablet's Customers tab, for the shop computer) ----------
+  const custName = (c) => (c && (c.name || c.phone || c.email)) || "Customer";
+  const phoneDigits = (v) => { const d = String(v ?? "").replace(/\D/g, ""); return d.length === 11 && d[0] === "1" ? d.slice(1) : d; };
+  const cleanEmail = (v) => { const e = String(v ?? "").trim().toLowerCase(); return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e) ? e : ""; };
+  const salesOf = (c) => S.sales.filter((x) => x.customer && x.customer.id === c.id);
+  const searchBox = (id, kind, value, placeholder) => `<div class="searchbox">
+      <input type="text" id="${id}" placeholder="${esc(placeholder)}" value="${esc(value)}" data-in="${kind}" autocomplete="off" aria-label="${esc(placeholder)}">
+      <button type="button" class="clear" data-act="search-clear" data-for="${id}" aria-label="Clear search" ${value ? "" : "hidden"}>✕</button></div>`;
+  const glyph = `<svg class="glyph" viewBox="0 0 72 72" aria-hidden="true"><rect x="22" y="8" width="28" height="56" fill="none" stroke="var(--red)" stroke-width="2"/><circle cx="36" cy="18" r="4" fill="none" stroke="var(--red)" stroke-width="2"/><path d="M28 32h16M28 40h16M28 48h10" stroke="var(--gold)" stroke-width="2"/></svg>`;
+  function customersView() {
+    return `<div class="people">
+      <section class="roster" aria-label="Customer list">${rosterHtml()}</section>
+      <section class="detail" id="cust-detail" aria-label="Customer">${custDetailHtml()}</section>
+    </div>`;
+  }
+  function custMatches() {
+    const q = UI.custQ.trim().toLowerCase(), qd = phoneDigits(q);
+    return S.customers.filter((c) => !q || `${c.name} ${c.email} ${c.phone}`.toLowerCase().includes(q) || (qd.length >= 3 && phoneDigits(c.phone).includes(qd)))
+      .sort((a, b) => custName(a).toLowerCase() < custName(b).toLowerCase() ? -1 : 1);
+  }
+  function rosterHtml() {
+    return `<div class="find">
+        ${searchBox("cust-q", "custlist", UI.custQ, "Find a customer by name or phone")}
+        <button class="btn primary" data-act="cust-new-tab">+ New customer</button></div>
+      <div class="who-list" id="who-list">${whoListHtml()}</div>`;
+  }
+  function whoListHtml() {
+    const list = custMatches();
+    if (!S.customers.length) return `<div class="empty" style="margin:16px">No customers yet. Click <b>New customer</b> to add the first one.</div>`;
+    if (!list.length) return `<div class="empty" style="margin:16px">No one matches “${esc(UI.custQ)}”.</div>`;
+    return list.map((c) => `<button data-act="cust-sel" data-id="${esc(c.id)}" aria-current="${UI.custSel === c.id}">
+        <b>${esc(custName(c))}</b><span class="sub">${esc([c.phone, c.email].filter(Boolean).join(" · "))}</span></button>`).join("");
+  }
+  function custDetailHtml() {
+    const c = S.customers.find((x) => x.id === UI.custSel);
+    if (!c) return `<div class="frame"><div class="in">${glyph}
+        <h3 style="font-size:24px">${S.customers.length ? "Choose a customer" : "Add your first customer"}</h3>
+        <p class="muted" style="margin:0;max-width:46ch">${S.customers.length ? "Pick someone from the list to see their details and what they've bought here." : "Add a customer with a phone number, an email, or both."}</p>
+      </div></div>`;
+    const mine = salesOf(c).slice().sort((a, b) => (a.date < b.date ? 1 : -1));
+    const rets = S.returns.filter((r) => mine.some((x) => x.id === r.saleId));
+    const here = mine.filter((x) => !x.voided).reduce((a, x) => a + x.total, 0) - rets.filter((r) => r.type === "refund").reduce((a, r) => a + r.amount, 0);
+    const sp = c.spent;
+    return `<div class="who-head"><div><span class="label">Customer</span><h2>${esc(custName(c))}</h2>
+          <span class="muted">${esc([c.phone, c.email].filter(Boolean).join(" · ")) || "No phone or email yet"}</span>
+          ${sp && sp.total ? `<div class="spentrow"><span>Spent <b>${m(Math.round(sp.total * 100))}</b></span>${["pos", "tablet", "staff"].filter((k) => sp[k]).map((k) => `<span>${{ pos: "Register", tablet: "Tablet", staff: "Added by hand" }[k]} ${m(Math.round(sp[k] * 100))}</span>`).join("")}${c.visits ? `<span>${c.visits} visit${c.visits === 1 ? "" : "s"}</span>` : ""}</div>`
+            : mine.length ? `<div class="spentrow"><span>Spent here <b>${m(here)}</b></span><span>${mine.length} sale${mine.length === 1 ? "" : "s"}</span></div>` : ""}</div>
+        <button class="btn ghost" data-act="cust-edit">Edit details</button>
+        <button class="btn primary big" style="width:auto" data-act="cust-ring">Start a sale</button></div>
+      <h3>Purchases on this register</h3>
+      ${mine.length ? `<div class="tablewrap"><table><thead><tr><th>Date</th><th>Receipt</th><th>Items</th><th class="r">Total</th><th></th></tr></thead><tbody>${mine.map((x) => `
+        <tr class="click ${x.voided ? "void" : ""}" data-act="sale-open" data-id="${x.id}"><td>${new Date(x.date).toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" })}</td><td class="num">#${x.no}</td>
+          <td>${esc(x.lines.map((l) => (l.qty > 1 ? l.qty + "× " : "") + l.name).join(", "))}</td><td class="r num">${m(x.total)}</td>
+          <td>${x.voided ? '<span class="pill bad">Voided</span>' : x.lines.some((l) => l.returned) ? '<span class="pill warn">Has returns</span>' : ""}</td></tr>`).join("")}</tbody></table></div>`
+        : `<div class="empty">No purchases on this register yet. Click <b>Start a sale</b> to ring something up for ${esc(custName(c))}.</div>`}`;
+  }
+  async function saveCustomerTab() {
+    const d = UI.dialog;
+    const name = String(d.name || "").trim().slice(0, 120), phone = String(d.phone || "").trim().slice(0, 40);
+    const rawEmail = String(d.email || "").trim(), email = cleanEmail(rawEmail);
+    if (rawEmail && !email) return toast("That email address doesn't look right.", true);
+    if (phone && (phoneDigits(phone).length < 7 || phoneDigits(phone).length > 15)) return toast("That phone number doesn't look right.", true);
+    if (!email && !phone) return toast("Give a phone number, an email, or both.", true);
+    // The same person shouldn't be on the list twice.
+    const other = S.customers.find((c) => c.id !== d.id && ((email && c.email === email) || (phone && phoneDigits(c.phone) === phoneDigits(phone))));
+    if (other) {
+      if (d.id) return toast(`That ${email && other.email === email ? "email" : "phone number"} already belongs to ${custName(other)}.`, true);
+      UI.dialog = null; UI.custSel = other.id; render();
+      return toast(`${custName(other)} is already on the list.`);
+    }
+    let c = d.id && S.customers.find((x) => x.id === d.id);
+    if (!c) { c = { id: uid(), created: new Date().toISOString(), source: "pos" }; S.customers.push(c); }
+    Object.assign(c, { name, phone, email });
+    if (UI.customer && UI.customer.id === c.id) UI.customer = c;
+    UI.dialog = null; UI.custSel = c.id; UI.custQ = "";
+    if (sync) sync.touched(c);
+    await persist(); render();
+    toast(d.id ? "Saved." : `${custName(c)} added.`);
   }
 
   // ---------- Register ----------
@@ -1011,6 +1123,14 @@ window.DEFAULT_PRICE_LIST = {"name":"Dress","updated":"Aug 13, 2026, 5:29 PM","c
         <input type="text" id="disc-v" inputmode="decimal" style="max-width:140px" value="${esc(d.value)}" data-in="dlg" data-k="value" placeholder="${d.dtype === "%" ? "10" : "5.00"}" autofocus></div>
         <div class="chips">${(d.dtype === "%" ? ["10", "15", "20", "25", "50"] : ["5", "10", "20", "25"]).map((v) => `<button class="chip" data-act="disc-quick" data-v="${v}">${d.dtype === "%" ? v + "%" : "$" + v}</button>`).join("")}</div>
         <div class="foot"><button class="btn ghost left" data-act="disc-clear">Remove discount</button><button class="btn" data-act="close">Cancel</button><button class="btn primary" data-act="disc-apply">Apply</button></div>`);
+    }
+    if (d.type === "custtab") {
+      return wrap(`<h2>${d.id ? "Edit customer" : "New customer"}</h2>
+        <label class="f"><span>Name</span><input type="text" id="ct-name" value="${esc(d.name)}" data-in="dlg" data-k="name" autocomplete="off" autofocus></label>
+        <div class="grid2"><label class="f"><span>Phone</span><input type="tel" id="ct-phone" value="${esc(d.phone)}" data-in="dlg" data-k="phone" autocomplete="off"></label>
+        <label class="f"><span>Email (for receipts)</span><input type="email" id="ct-email" value="${esc(d.email)}" data-in="dlg" data-k="email" autocomplete="off"></label></div>
+        <p class="muted small" style="margin:0">Give a phone number, an email, or both.</p>
+        <div class="foot"><button class="btn" data-act="close">Cancel</button><button class="btn primary" data-act="custtab-save">${d.id ? "Save" : "Add customer"}</button></div>`);
     }
     if (d.type === "cust") {
       return wrap(`<h2>New customer</h2>
@@ -1981,6 +2101,16 @@ window.DEFAULT_PRICE_LIST = {"name":"Dress","updated":"Aug 13, 2026, 5:29 PM","c
     "disc-clear": () => { const d = UI.dialog; if (d.target === "cart") UI.cartDisc = null; else UI.cart[d.target].disc = null; UI.dialog = null; renderDialog(); refreshTape(); },
     "cart-clear": () => { UI.dialog = { type: "confirm", title: "Clear this sale?", text: "Everything on the current sale will be removed. Nothing has been charged.", yes: "Clear sale", run: () => { UI.cart = []; UI.cartDisc = null; UI.customer = null; UI.credit = null; UI.custQuery = ""; render(); } }; renderDialog(); },
     "credit-drop": () => { UI.credit = null; refreshTape(); toast("Exchange cancelled. The returned items are still on receipt as sold."); },
+    "cust-sel": (el) => { UI.custSel = el.dataset.id; render(); },
+    "cust-new-tab": () => {
+      const q = UI.custQ.trim(), digits = phoneDigits(q);
+      UI.dialog = { type: "custtab", id: null, name: digits.length >= 7 || q.includes("@") ? "" : q, phone: digits.length >= 7 ? q : "", email: q.includes("@") ? q : "" };
+      renderDialog();
+    },
+    "cust-edit": () => { const c = S.customers.find((x) => x.id === UI.custSel); if (!c) return; UI.dialog = { type: "custtab", id: c.id, name: c.name || "", phone: c.phone || "", email: c.email || "" }; renderDialog(); },
+    "custtab-save": () => saveCustomerTab(),
+    "cust-ring": () => { const c = S.customers.find((x) => x.id === UI.custSel); if (!c) return; UI.customer = c; UI.custQuery = ""; UI.view = "register"; render(); toast(`Ringing up for ${custName(c)}.`); },
+    "search-clear": (el) => { const i = document.getElementById(el.dataset.for); if (!i) return; i.value = ""; i.dispatchEvent(new Event("input", { bubbles: true })); i.focus(); },
     "cust-pick": (el) => { UI.customer = S.customers.find((c) => c.id === el.dataset.id); UI.custQuery = ""; refreshTape(); },
     "cust-new": () => {
       const q = UI.custQuery.trim();
@@ -2270,7 +2400,7 @@ window.DEFAULT_PRICE_LIST = {"name":"Dress","updated":"Aug 13, 2026, 5:29 PM","c
     }
     if (ev.key === "Enter" && UI.dialog && ev.target.tagName === "INPUT" && ev.target.type !== "checkbox") {
       const d = UI.dialog;
-      const go = { custom: "custom-add", disc: "disc-apply", cust: "cust-save", item: "item-save", pay: "pay-add", refund: "rf-done", mgr: "mgr-check", emp: "emp-save", punchfix: "pf-save", shift: "shift-save" }[d.type];
+      const go = { custom: "custom-add", disc: "disc-apply", cust: "cust-save", item: "item-save", pay: "pay-add", refund: "rf-done", mgr: "mgr-check", emp: "emp-save", punchfix: "pf-save", shift: "shift-save", custtab: "custtab-save" }[d.type];
       if (d.type === "receipt" && ev.target.id === "rc-to") return A["rc-email"]();
       if (go) { ev.preventDefault(); ev.target.dispatchEvent(new Event("input", { bubbles: true })); A[go](); }
     }
@@ -2282,6 +2412,10 @@ window.DEFAULT_PRICE_LIST = {"name":"Dress","updated":"Aug 13, 2026, 5:29 PM","c
     if (!kind) return;
     const val = el.type === "checkbox" ? el.checked : el.value;
     if (kind === "search") { UI.search = val; rerenderPart("tags", tagsHtml()); }
+    else if (kind === "custlist") {
+      UI.custQ = val; rerenderPart("who-list", whoListHtml());
+      const x = el.parentElement && el.parentElement.querySelector(".clear"); if (x) x.hidden = !val;
+    }
     else if (kind === "custq") { UI.custQuery = val; rerenderPart("suggest", suggestHtml()); }
     else if (kind === "retq") { UI.retQuery = val; const pos0 = el.selectionStart; render(); const i = document.getElementById("retq"); if (i) { i.focus(); i.setSelectionRange(pos0, pos0); } }
     else if (kind === "stockq") { UI.stockSearch = val; const pos0 = el.selectionStart; render(); const i = document.getElementById("stockq"); if (i) { i.focus(); i.setSelectionRange(pos0, pos0); } }
