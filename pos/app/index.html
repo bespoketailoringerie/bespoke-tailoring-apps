@@ -108,7 +108,8 @@ label.f > span, .label { font-family: var(--f-mono); font-weight: 700; font-size
 .banner { background: var(--red); color: var(--gold); font-family: var(--f-display); font-size: 22px; letter-spacing: 0.06em; text-transform: uppercase; padding: 8px 18px; margin: 0; }
 
 /* Register */
-.counter { display: grid; grid-template-columns: minmax(0, 1fr) 440px; height: 100%; min-height: 0; }
+/* The sale panel always fills from under the header to the bottom of the window (--chrome = header height, set by the app). */
+.counter { display: grid; grid-template-columns: minmax(0, 1fr) 440px; align-items: start; height: 100%; min-height: calc(100vh - var(--chrome, 140px)); }
 .shelf { min-height: 0; overflow: auto; padding: 22px 24px 32px; display: grid; gap: 16px; align-content: start; }
 .shelf .find input { font-size: 17px; min-height: 48px; }
 .services { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
@@ -132,7 +133,8 @@ label.f > span, .label { font-family: var(--f-mono); font-weight: 700; font-size
 .dot { width: 14px; height: 14px; border-radius: 50%; border: 2px solid #fff; box-shadow: 0 0 0 1.5px var(--brown); display: inline-block; flex: none; }
 
 /* Current sale */
-.tape { min-width: 0; background: var(--card); border-left: 2px solid var(--red); display: flex; flex-direction: column; min-height: 0; }
+.tape { min-width: 0; background: var(--card); border-left: 2px solid var(--red); display: flex; flex-direction: column; position: sticky; top: 0; height: calc(100vh - var(--chrome, 140px)); min-height: 360px; }
+.tape > .lines { min-height: 0; overflow: auto; }
 .tape > .lines { flex: 1 1 auto; }
 .tape > .top, .tape > .who, .tape > .sums { flex: none; }
 .tape .top { display: flex; align-items: center; gap: 10px; background: var(--red); padding: 0 10px 0 0; }
@@ -232,9 +234,12 @@ tr.sel td:first-child { box-shadow: inset 4px 0 0 var(--red); }
 .toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: var(--ink); color: var(--bg); padding: 10px 18px; z-index: 80; box-shadow: 0 8px 24px var(--shade); max-width: calc(100% - 32px); border-left: 4px solid var(--gold); }
 .toast.bad { background: var(--red); border-left-color: var(--ink); }
 
+@media (max-width: 1100px) { .counter { grid-template-columns: minmax(0, 1fr) 360px; } }
+@media (max-width: 760px) {
+  .counter { grid-template-columns: 1fr; height: auto; min-height: 0; }
+  .tape { border-left: 0; border-top: 2px solid var(--red); position: static; height: auto; }
+}
 @media (max-width: 900px) {
-  .counter { grid-template-columns: 1fr; height: auto; }
-  .tape { border-left: 0; border-top: 2px solid var(--red); }
   .cols, .grid2, .receipt-view { grid-template-columns: 1fr; }
   .bar .clock { display: none; }
   .bar { gap: 12px; }
@@ -766,6 +771,14 @@ window.DEFAULT_PRICE_LIST = {"name":"Dress","updated":"Aug 13, 2026, 5:29 PM","c
 
   // ---------- render ----------
   const VIEWS = [["register", "Register"], ["returns", "Returns"], ["stock", "Stock"], ["sales", "Sales"], ["staff", "Staff"], ["settings", "Settings"]];
+  // Height of the header and notice band, so the sale panel can fill the rest of the window.
+  function setChrome() {
+    const bar = document.querySelector(".bar"), note = document.querySelector(".notice");
+    const h = (bar ? bar.offsetHeight : 0) + (note && note.textContent.trim() ? note.offsetHeight : 0);
+    document.documentElement.style.setProperty("--chrome", h + "px");
+  }
+  window.addEventListener("resize", () => setChrome());
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => setChrome());
   function render() {
     const active = document.activeElement;
     const keepId = active && active.id;
@@ -780,6 +793,7 @@ window.DEFAULT_PRICE_LIST = {"name":"Dress","updated":"Aug 13, 2026, 5:29 PM","c
       <main id="main">${viewHtml()}</main>
       <div id="dlg">${dialogHtml()}</div>`;
     tick();
+    setChrome();
     if (keepId) {
       const el = document.getElementById(keepId);
       if (el) { el.focus(); if (selStart != null && "setSelectionRange" in el) try { el.setSelectionRange(selStart, selStart); } catch {} }
