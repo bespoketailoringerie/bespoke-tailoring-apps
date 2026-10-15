@@ -48,8 +48,8 @@ Check the run with `gh run list` / `gh run watch` and the release with
 ## Syncing with the website
 
 The website (`bespoketailoringerie/bespoke-tailoring-erie`, see its CLAUDE.md) is the hub. Each
-register has its own key (Netlify `POS_APP_KEY` / `TABLET_APP_KEY`), entered once on the device: in
-Settings on the shop computer, in the connection dialog on the tablet. Downloads never contain a key.
+register has its own key (Netlify `POS_APP_KEY` / `TABLET_APP_KEY`), entered once on the device through
+the **Customer list** status button at the top of the screen (both apps work the same way). Downloads never contain a key.
 
 - Everything is kept locally and sent through an outbox, so a register works offline and catches up.
 - Customers sync first (a new customer needs its website id before its tags or sales can go up).
