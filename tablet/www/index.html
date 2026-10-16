@@ -263,6 +263,20 @@ label.f > span, .label { font-family: var(--f-mono); font-weight: 700; font-size
 .tdue input[type="date"] { background: var(--bg); border: 2px solid var(--red); padding: 6px 10px; min-height: 48px; font-size: 17px; color: var(--ink); border-radius: 0; max-width: 220px; }
 .tdue .chip[aria-pressed="true"] { background: var(--red); color: var(--bg); }
 .tdue.missing { border-color: var(--red); box-shadow: 0 0 0 3px var(--gold); }
+.tdue .hardbox { display: inline-flex; align-items: center; gap: 8px; min-height: 48px; padding: 0 12px 0 4px; border: 0; background: none; cursor: pointer; font-family: var(--f-mono); font-weight: 700; font-size: 14px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink); }
+.tdue .hardbox i { width: 26px; height: 26px; border: 2px solid var(--ink); background: var(--card); display: grid; place-items: center; flex: none; }
+.tdue .hardbox[aria-pressed="true"] { color: var(--red); }
+.tdue .hardbox[aria-pressed="true"] i { background: var(--red); border-color: var(--red); }
+.tdue .hardbox[aria-pressed="true"] i::after { content: ""; width: 7px; height: 13px; border: solid var(--bg); border-width: 0 3px 3px 0; transform: rotate(45deg) translate(-1px, -2px); }
+/* A hard due date: the card is filled red so it can't be overlooked. */
+.tagcard.hard { background: var(--red); border: 3px solid var(--ink); box-shadow: 0 0 0 3px var(--gold); }
+.tagcard.hard > .in { border-color: var(--gold); color: var(--bg); }
+.tagcard.hard .whom, .tagcard.hard .top b, .tagcard.hard .items, .tagcard.hard .money, .tagcard.hard .due-tag, .tagcard.hard .muted { color: var(--bg); }
+.tagcard.hard .btn { background: var(--bg); border-color: var(--bg); color: var(--red); }
+.tagcard.hard .btn.primary { background: var(--gold); border-color: var(--gold); color: var(--ink); }
+.hardbar { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px; background: var(--gold); color: var(--ink); margin: -14px -16px 4px; padding: 8px 16px; font-family: var(--f-mono); font-weight: 700; font-size: 14px; letter-spacing: 0.14em; text-transform: uppercase; }
+.hardbar b { font-family: var(--f-display); font-weight: 400; font-size: 22px; letter-spacing: 0; text-transform: none; }
+.hardbar span:last-child { margin-left: auto; }
 .due-tag { font-family: var(--f-mono); font-weight: 700; font-size: 13px; letter-spacing: 0.06em; }
 .due-tag.late { color: var(--red); }
 .qbadge { display: inline-block; min-width: 20px; margin-left: 8px; padding: 0 6px; background: var(--gold); color: var(--ink); font-size: 12px; line-height: 1.6; letter-spacing: 0; text-align: center; }
@@ -1065,7 +1079,9 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; user-select:
     const lines = tagLines(t); const [cls, label] = tagStatus(t);
     const c = showWho && customers.find((x) => x.id === t.customerId);
     const fmt = (iso) => new Date(iso).toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" });
-    return `<div class="tagcard ${t.status === "closed" ? "closed" : ""} ${isLate(t) ? "late" : ""}"><div class="in">
+    const hard = t.hard && t.due && t.status !== "closed";
+    return `<div class="tagcard ${t.status === "closed" ? "closed" : ""} ${isLate(t) ? "late" : ""} ${hard ? "hard" : ""}"><div class="in">
+        ${hard ? `<div class="hardbar"><span>⚑ Hard date</span><b>${esc(new Date(t.due + "T12:00").toLocaleDateString([], { weekday: "long", month: "long", day: "numeric" }))}</b><span>Can't be missed</span></div>` : ""}
         ${showWho ? `<button class="whom" data-act="tag-who" data-id="${esc(t.customerId)}">${esc(custName(c))}</button>` : ""}
         <div class="top"><b>Tag ${tagNo(t)}</b><span class="pill ${cls}">${label}</span>
           ${t.status !== "closed" ? `<span class="due-tag ${isLate(t) ? "late" : ""}">${esc(dueText(t))}${t.rush ? " · RUSH" : ""}</span>` : ""}
@@ -1262,10 +1278,11 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; user-select:
 
   function dueHtml(d) {
     const t = d.tag;
-    if (d.readOnly) return `<span class="label" style="color:var(--ink)">Due</span><span>${esc(t.due ? new Date(t.due + "T12:00").toLocaleDateString([], { weekday: "long", month: "long", day: "numeric", year: "numeric" }) : "No due date")}${t.rush ? " · Rush, " + esc(rushOf(t)[1]) : ""}</span>`;
+    if (d.readOnly) return `<span class="label" style="color:var(--ink)">Due</span><span>${esc(t.due ? new Date(t.due + "T12:00").toLocaleDateString([], { weekday: "long", month: "long", day: "numeric", year: "numeric" }) : "No due date")}${t.hard && t.due ? " · HARD DATE" : ""}${t.rush ? " · Rush, " + esc(rushOf(t)[1]) : ""}</span>`;
     const quick = [["Tomorrow", 1], ["In 3 days", 3], ["In 1 week", 7], ["In 2 weeks", 14], ["In 3 weeks", 21]];
     return `<span class="label" style="color:var(--ink)">Due date</span>
       <div class="row"><input type="date" id="tag-due" value="${esc(t.due || "")}" data-in="tagdue" aria-label="Due date">
+        <button class="hardbox" data-act="hard-date" aria-pressed="${!!(t.hard && t.due)}"><i></i><span>Hard date</span></button>
         ${quick.map(([l, n]) => `<button class="chip" data-act="due-quick" data-n="${n}" aria-pressed="${t.due === dayPlus(n)}">${l}</button>`).join("")}
         <button class="chip" data-act="due-none" aria-pressed="${!!t.noDue && !t.due}">No due date</button></div>
       <span class="label" style="color:var(--ink);margin-top:4px">Rush</span>
@@ -1458,7 +1475,13 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; user-select:
     "tsec": (el) => { const d = UI.dialog; d.open = d.open || {}; d.open[el.dataset.s] = !(el.getAttribute("aria-expanded") === "true"); renderDialog(); const b = document.querySelector(`[data-act="tsec"][data-s="${el.dataset.s}"]`); if (b) b.scrollIntoView({ block: "start", behavior: "smooth" }); },
     "tag-paid": () => { const t = UI.dialog.tag; if (t.paid) delete t.paid; else t.paid = new Date().toISOString(); refreshTotal(); const b = document.getElementById("tsc"); if (b) b.innerHTML = t.paid ? "Close tag (paid)" : "Close tag &amp; take payment"; },
     "rush": (el) => { const t = UI.dialog.tag; t.rush = Number(el.dataset.n) || 0; refreshDue(); refreshTotal(); },
-    "due-none": () => { const t = UI.dialog.tag; t.due = null; t.noDue = true; refreshDue(); },
+    "due-none": () => { const t = UI.dialog.tag; t.due = null; t.noDue = true; delete t.hard; refreshDue(); },
+    "hard-date": (el) => {
+      const t = UI.dialog.tag;
+      if (!t.due) { el.setAttribute("aria-pressed", "false"); return toast("Pick the due date first, then tick Hard date.", true); }
+      if (t.hard) delete t.hard; else t.hard = true;
+      el.setAttribute("aria-pressed", String(!!t.hard));
+    },
     "tag-delete": () => {
       const id = UI.dialog.tag.id; const t = tags.find((x) => x.id === id);
       UI.dialog = { type: "confirm", title: `Delete tag ${t ? tagNo(t) : ""}?`, text: "The tag and everything written on it will be removed from this customer.", yes: "Delete tag",
