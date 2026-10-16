@@ -235,7 +235,7 @@ label.f > span, .label { font-family: var(--f-mono); font-weight: 700; font-size
 .tsec { display: grid; gap: 0; }
 .tsec h3 { font-family: var(--f-display); font-size: 22px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink); border-bottom: 2px solid var(--ink); padding-bottom: 2px; margin-bottom: 2px; }
 .trows { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 22px; }
-.trow { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: center; border-bottom: 1px solid #a88d5c; padding: 6px 0; min-width: 0; }
+.trow { display: grid; grid-template-columns: minmax(0, 1fr) 96px auto; gap: 8px; align-items: center; border-bottom: 1px solid #a88d5c; padding: 6px 0; min-width: 0; }
 .trow .tick { display: flex; align-items: center; gap: 10px; border: 0; background: none; padding: 0; min-height: 48px; text-align: left; cursor: pointer; color: var(--ink); font-size: 17px; min-width: 0; }
 .trow .tick i { width: 26px; height: 26px; border: 2px solid var(--ink); flex: none; display: grid; place-items: center; background: var(--card); }
 .trow.on .tick i { background: var(--red); border-color: var(--red); }
@@ -246,6 +246,8 @@ label.f > span, .label { font-family: var(--f-mono); font-weight: 700; font-size
 .trow .qty span { min-width: 34px; font-size: 15px; }
 .trow.other { grid-template-columns: minmax(0, 1fr) 120px auto auto; }
 .tpricebox { display: flex; align-items: center; gap: 2px; border-bottom: 2px solid var(--ink); background: var(--card); padding-left: 8px; font-family: var(--f-mono); font-weight: 700; color: var(--red); }
+.tpricebox input[type="text"]::placeholder { color: var(--brown); opacity: 0.55; font-weight: 400; }
+.tpricebox.own { background: var(--gold-soft); }
 .tpricebox input[type="text"] { border: 0; min-height: 42px; padding: 6px 6px 6px 2px; background: transparent; font-family: var(--f-mono); font-weight: 700; color: var(--red); min-width: 0; }
 .tnotes { width: 100%; min-height: 110px; background: var(--card); border: 2px solid var(--ink); padding: 10px 12px; font-size: 17px; border-radius: 0; resize: vertical; }
 .thead { display: flex; gap: 12px; align-items: baseline; flex-wrap: wrap; }
@@ -355,7 +357,7 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; user-select:
   .people .roster { border-right: 0; border-bottom: 2px solid var(--red); }
   .roster .who-list { max-height: 50vh; }
   .people .detail { overflow: visible; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
-  .trow { grid-template-columns: minmax(0, 1fr) auto; }
+  .trow { grid-template-columns: minmax(0, 1fr) 88px auto; }
 }
 </style>
 
@@ -497,7 +499,8 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; user-select:
   // The price shown beside a line on the tag: the shop's own price if one is set, else the menu's.
   const shownPrice = (k) => (settings.tagPrices[k] ? "$" + (settings.tagPrices[k] / 100).toFixed(2).replace(/\.00$/, "") : priceText(k));
   // A tag line's price: an extra line carries its own; a printed line uses the price list.
-  const linePrice = (l) => (l.key.startsWith("other:") ? l.price || 0 : priceFor(l.key));
+  // A price typed on the tag itself wins for that tag; then the shop's price from Settings; then the menu.
+  const linePrice = (l) => (l.key.startsWith("other:") ? l.price || 0 : l.price || priceFor(l.key));
   const tagNo = (t) => `#${t.no}`;
   const rushOf = (t) => RUSH.find(([n]) => n === t.rush) || null;
   // What the tag comes to at menu (or saved) prices. Lines without a set price are listed instead.
@@ -523,7 +526,7 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; user-select:
   // What's on a tag, in order: ticked lines first as they appear on the paper tag, then extra lines.
   function tagLines(t) {
     const out = [];
-    for (const sec of TAG) for (const [k] of rowsOf(sec)) { const r = t.items && t.items[k]; if (r && r.on) out.push({ key: k, name: itemName(k), measure: r.measure || "", qty: Math.max(1, r.qty || 1) }); }
+    for (const sec of TAG) for (const [k] of rowsOf(sec)) { const r = t.items && t.items[k]; if (r && r.on) out.push({ key: k, name: itemName(k), measure: r.measure || "", qty: Math.max(1, r.qty || 1), price: Math.max(0, Math.round(Number(r.price) || 0)) }); }
     for (const o of t.others || []) if (String(o.label || "").trim()) out.push({ key: "other:" + String(o.label).trim().toLowerCase(), name: String(o.label).trim(), measure: o.measure || "", qty: Math.max(1, o.qty || 1), price: Math.max(0, Math.round(Number(o.price) || 0)) });
     return out;
   }
@@ -1218,6 +1221,7 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; user-select:
       const r = t.items[k] || {}; const on = !!r.on; const pt = shownPrice(k);
       return `<div class="trow ${on ? "on" : ""}" id="tr-${k}">
         <button class="tick" data-act="tag-tick" data-k="${k}" aria-pressed="${on}" ${ro ? "disabled" : ""}><i></i><span>${esc(label)}${pt ? ` <small class="tprice">${pt}</small>` : ""}</span></button>
+        <span class="tpricebox ${r.price ? "own" : ""}" title="Price for this tag only"><span aria-hidden="true">$</span><input type="text" id="tp-${k}" value="${r.price ? (r.price / 100).toFixed(2).replace(/\.00$/, "") : ""}" data-in="tagp" data-k="${k}" placeholder="${esc(pt.replace(/^\$/, "") || "Price")}" aria-label="${esc(label)} price on this tag" inputmode="decimal" autocomplete="off" ${ro ? "readonly" : ""}></span>
         <span class="qty" aria-label="How many"><button data-act="tag-qty" data-k="${k}" data-d="-1" aria-label="One fewer" ${ro ? "disabled" : ""}>−</button><span id="tq-${k}">×${Math.max(1, r.qty || 1)}</span><button data-act="tag-qty" data-k="${k}" data-d="1" aria-label="One more" ${ro ? "disabled" : ""}>+</button></span>
       </div>`;
     };
@@ -1640,6 +1644,15 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; user-select:
     if (kind === "custq") { UI.custQ = el.value; const w = document.getElementById("who-list"); if (w) w.innerHTML = whoListHtml(); clearBtn(el); return; }
     if (kind === "tagq") { UI.tagQ = el.value; const w = document.getElementById("board"); if (w) w.innerHTML = boardHtml(); clearBtn(el); return; }
     if (!kind || !UI.dialog) return;
+    if (kind === "tagp") {
+      const k = el.dataset.k; const r = UI.dialog.tag.items[k] = UI.dialog.tag.items[k] || { on: false, qty: 1 };
+      r.price = Math.max(0, toCents(el.value));
+      const rowEl = document.getElementById("tr-" + k);
+      if (r.price && !r.on) { r.on = true; if (rowEl) { rowEl.classList.add("on"); const tk = rowEl.querySelector(".tick"); if (tk) tk.setAttribute("aria-pressed", "true"); } }
+      const box = el.closest(".tpricebox"); if (box) box.classList.toggle("own", !!r.price);
+      refreshTotal();
+      return;
+    }
     if (kind === "tagm") {
       const k = el.dataset.k; const r = UI.dialog.tag.items[k] = UI.dialog.tag.items[k] || { on: false, measure: "", qty: 1 };
       r.measure = el.value;
