@@ -282,6 +282,8 @@ label.f > span, .label { font-family: var(--f-mono); font-weight: 700; font-size
 
 .ttotal { border-top: 3px double var(--ink); padding-top: 10px; display: grid; gap: 4px; }
 .ttotal-row { display: flex; justify-content: space-between; align-items: baseline; font-family: var(--f-display); font-size: 28px; color: var(--ink); }
+.ttotal-row .paidbtn { margin-left: auto; margin-right: 16px; min-height: 44px; }
+.ttotal-row .paidbtn[aria-pressed="true"] { background: var(--red); color: var(--bg); }
 .ttotal-row .money { font-family: var(--f-mono); font-weight: 700; font-size: 28px; color: var(--red); }
 
 .searchbox { position: relative; }
@@ -512,11 +514,16 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; user-select:
       else unset.push(l.name + (priceText(l.key) ? ` (${priceText(l.key)})` : ""));
     }
     const rush = rushOf(t); if (rush) sum += rush[2] * 100;
-    return { sum, unset };
+    // A tag marked Paid comes to nothing more.
+    if (t.paid) return { sum: 0, unset: [], full: sum };
+    return { sum, unset, full: sum };
   }
   function tagTotalHtml(t) {
-    const { sum, unset } = tagTotal(t);
-    return `<div class="ttotal-row"><span>Total</span><span class="money">${m(sum)}</span></div>
+    const { sum, unset, full } = tagTotal(t);
+    const ro = UI.dialog && UI.dialog.readOnly;
+    return `<div class="ttotal-row"><span>Total${t.paid ? ` <span class="pill done">Paid</span>` : ""}</span>
+        ${ro ? "" : `<button class="chip paidbtn" data-act="tag-paid" aria-pressed="${!!t.paid}">${t.paid ? "✓ Paid" : "Mark as paid"}</button>`}<span class="money">${m(sum)}</span></div>
+      ${t.paid && full ? `<div class="small muted">Already paid. The alterations come to ${m(full)}.</div>` : ""}
       ${unset.length ? `<div class="small muted">Plus ${unset.length === 1 ? "a price" : "prices"} to set at the register: ${esc(unset.join(", "))}</div>` : ""}`;
   }
   const refreshTotal = () => { const b = document.getElementById("ttotal"); if (b && UI.dialog && UI.dialog.tag) b.innerHTML = tagTotalHtml(UI.dialog.tag); };
@@ -859,7 +866,7 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; user-select:
   function cartTotals() { return totals(UI.cart, UI.cartDisc); }
   const cartTagIds = () => [...new Set(UI.cart.filter((l) => l.tagId).map((l) => l.tagId))];
   const cartTagNos = () => cartTagIds().map((id) => (tags.find((t) => t.id === id) || {}).no).filter(Boolean);
-  const unpriced = () => UI.cart.some((l) => l.tagId && !l.price);
+  const unpriced = () => UI.cart.some((l) => l.tagId && !l.price && !l.paid);
   function tapeHtml() {
     const t = cartTotals();
     return `
@@ -870,10 +877,10 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; user-select:
       <div class="lines">
         ${UI.cart.length ? UI.cart.map((l, i) => {
           const gross = l.price * l.qty; const off = discountOf(gross, l.disc);
-          const kind = l.tagId ? `Tag #${l.tagNo}${l.measure ? " · " + esc(l.measure) : ""}${l.note ? " · " + esc(l.note) : ""}${l.range && !l.price ? " · menu " + esc(l.range) : ""}` : l.fixed ? "Made to measure" : "Service";
+          const kind = l.tagId ? `Tag #${l.tagNo}${l.paid ? " · Paid" : ""}${l.measure ? " · " + esc(l.measure) : ""}${l.note ? " · " + esc(l.note) : ""}${l.range && !l.price && !l.paid ? " · menu " + esc(l.range) : ""}` : l.fixed ? "Made to measure" : "Service";
           return `<div class="line"><div class="what"><b>${esc(l.name)}</b>
-              <div class="opts">${kind}${l.qty > 1 && l.price ? ` · ${m(l.price)} each` : ""}${l.disc && l.disc.value ? ` · <span class="pill plain">${esc(discLabel(l.disc))}</span>` : ""}${l.tagId && !l.price ? ` · <span class="pill bad">Price needed</span>` : ""}</div></div>
-            <div class="amt">${l.tagId ? `<button class="price-btn" data-act="line-price" data-i="${i}" aria-label="Set the price for ${esc(l.name)}">${off ? `<s>${m(gross)}</s>` : ""}${l.price ? m(gross - off) : "Set price"}</button>` : `${off ? `<s>${m(gross)}</s>` : ""}${m(gross - off)}`}</div>
+              <div class="opts">${kind}${l.qty > 1 && l.price ? ` · ${m(l.price)} each` : ""}${l.disc && l.disc.value ? ` · <span class="pill plain">${esc(discLabel(l.disc))}</span>` : ""}${l.tagId && !l.price && !l.paid ? ` · <span class="pill bad">Price needed</span>` : ""}</div></div>
+            <div class="amt">${l.tagId ? `<button class="price-btn" data-act="line-price" data-i="${i}" aria-label="Set the price for ${esc(l.name)}">${off ? `<s>${m(gross)}</s>` : ""}${l.price || l.paid ? m(gross - off) : "Set price"}</button>` : `${off ? `<s>${m(gross)}</s>` : ""}${m(gross - off)}`}</div>
             <div class="ctl"><span class="qty"><button data-act="line-dec" data-i="${i}" aria-label="One fewer">−</button><span>${l.qty}</span><button data-act="line-inc" data-i="${i}" aria-label="One more">+</button></span>
               <button class="btn small ghost" data-act="line-disc" data-i="${i}">Discount</button>
               <button class="btn small ghost" data-act="line-del" data-i="${i}" style="margin-left:auto">Remove</button></div></div>`;
@@ -1063,14 +1070,14 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; user-select:
         <div class="top"><b>Tag ${tagNo(t)}</b><span class="pill ${cls}">${label}</span>
           ${t.status !== "closed" ? `<span class="due-tag ${isLate(t) ? "late" : ""}">${esc(dueText(t))}${t.rush ? " · RUSH" : ""}</span>` : ""}
           <span class="muted small">Opened ${fmt(t.opened)}${t.status === "closed" && t.closedAt ? ` · paid ${fmt(t.closedAt)}` : ""}</span>
-          <span class="money" style="margin-left:auto;font-weight:700">${t.status === "closed" ? m(t.total || 0) : m(tagTotal(t).sum) + (tagTotal(t).unset.length ? "+" : "")}</span></div>
+          ${t.paid && t.status !== "closed" ? `<span class="pill done">Paid</span>` : ""}<span class="money" style="margin-left:auto;font-weight:700">${t.status === "closed" ? m(t.total || 0) : m(tagTotal(t).sum) + (tagTotal(t).unset.length ? "+" : "")}</span></div>
         <div class="items">${lines.length ? lines.map((l) => esc(`${l.qty > 1 ? l.qty + " × " : ""}${l.name}${l.measure ? " " + l.measure : ""}`)).join(" · ") : '<span class="muted">Nothing ticked yet</span>'}</div>
         ${t.notes ? `<div class="small muted" style="white-space:pre-wrap">${esc(t.notes)}</div>` : ""}
         <div class="row">${t.status === "closed"
           ? `<button class="btn small" data-act="tag-view" data-id="${esc(t.id)}">View tag</button>${t.saleId ? `<button class="btn small ghost" data-act="sale-open" data-id="${esc(t.saleId)}">Receipt T-${esc(t.receiptNo)}</button>` : ""}`
           : t.status === "register"
           ? `<button class="btn small primary" data-act="nav" data-v="register">Go to the register</button>`
-          : `<button class="btn small" data-act="tag-edit" data-id="${esc(t.id)}">Edit tag</button><button class="btn small primary" data-act="tag-close" data-id="${esc(t.id)}">Take payment &amp; close tag</button>`}</div>
+          : `<button class="btn small" data-act="tag-edit" data-id="${esc(t.id)}">Edit tag</button><button class="btn small primary" data-act="tag-close" data-id="${esc(t.id)}">${t.paid ? "Close tag (paid)" : "Take payment &amp; close tag"}</button>`}</div>
       </div></div>`;
   }
 
@@ -1250,7 +1257,7 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; user-select:
       <div class="foot">${ro
         ? `<button class="btn primary" data-act="close">Close</button>`
         : `${d.isNew ? `<button class="btn ghost left" data-act="tag-discard">Discard tag</button>` : `<button class="btn ghost left" data-act="tag-delete">Delete tag</button>`}
-           <button class="btn" data-act="tag-save-close">Close tag &amp; take payment</button><button class="btn primary" data-act="tag-save">Save tag</button>`}</div>`;
+           <button class="btn" data-act="tag-save-close" id="tsc">${t.paid ? "Close tag (paid)" : "Close tag &amp; take payment"}</button><button class="btn primary" data-act="tag-save">Save tag</button>`}</div>`;
   }
 
   function dueHtml(d) {
@@ -1449,6 +1456,7 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; user-select:
     "tag-who": (el) => { UI.custSel = el.dataset.id; UI.view = "customers"; render(); },
     "due-quick": (el) => { const t = UI.dialog.tag; t.due = dayPlus(Number(el.dataset.n)); t.noDue = false; refreshDue(); },
     "tsec": (el) => { const d = UI.dialog; d.open = d.open || {}; d.open[el.dataset.s] = !(el.getAttribute("aria-expanded") === "true"); renderDialog(); const b = document.querySelector(`[data-act="tsec"][data-s="${el.dataset.s}"]`); if (b) b.scrollIntoView({ block: "start", behavior: "smooth" }); },
+    "tag-paid": () => { const t = UI.dialog.tag; if (t.paid) delete t.paid; else t.paid = new Date().toISOString(); refreshTotal(); const b = document.getElementById("tsc"); if (b) b.innerHTML = t.paid ? "Close tag (paid)" : "Close tag &amp; take payment"; },
     "rush": (el) => { const t = UI.dialog.tag; t.rush = Number(el.dataset.n) || 0; refreshDue(); refreshTotal(); },
     "due-none": () => { const t = UI.dialog.tag; t.due = null; t.noDue = true; refreshDue(); },
     "tag-delete": () => {
@@ -1541,9 +1549,9 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; user-select:
     if (UI.cart.length && !(UI.cartCustomer && UI.cartCustomer.id === t.customerId)) { UI.view = "register"; render(); return toast("Finish or clear the sale that's on the register first.", true); }
     if (UI.cart.some((l) => l.tagId === t.id)) { UI.view = "register"; render(); return; }
     const c = customers.find((x) => x.id === t.customerId);
-    for (const l of lines) UI.cart.push({ key: uid(), name: l.name, measure: l.measure, qty: l.qty, price: linePrice(l), disc: null, tagId: t.id, tagNo: t.no, tagKey: l.key.startsWith("other:") ? "" : l.key, range: TAG_ROW[l.key] && Array.isArray(TAG_ROW[l.key].price) ? priceText(l.key) : "", note: TAG_ROW[l.key] && TAG_ROW[l.key].note ? TAG_ROW[l.key].note : "" });
+    for (const l of lines) UI.cart.push({ key: uid(), name: l.name, measure: l.measure, qty: l.qty, price: t.paid ? 0 : linePrice(l), paid: !!t.paid, disc: null, tagId: t.id, tagNo: t.no, tagKey: l.key.startsWith("other:") ? "" : l.key, range: TAG_ROW[l.key] && Array.isArray(TAG_ROW[l.key].price) ? priceText(l.key) : "", note: TAG_ROW[l.key] && TAG_ROW[l.key].note ? TAG_ROW[l.key].note : "" });
     const rush = rushOf(t);
-    if (rush) UI.cart.push({ key: uid(), name: `Rush: ${rush[1]}`, measure: "", qty: 1, price: rush[2] * 100, disc: null, tagId: t.id, tagNo: t.no, tagKey: "", rush: true });
+    if (rush) UI.cart.push({ key: uid(), name: `Rush: ${rush[1]}`, measure: "", qty: 1, price: t.paid ? 0 : rush[2] * 100, paid: !!t.paid, disc: null, tagId: t.id, tagNo: t.no, tagKey: "", rush: true });
     UI.cartCustomer = c ? { id: c.id, name: c.name, phone: c.phone, email: c.email } : null;
     t.status = "register"; saveDoc("tags", t);
     UI.view = "register"; render();
