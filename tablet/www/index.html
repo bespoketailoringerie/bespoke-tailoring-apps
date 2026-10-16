@@ -308,6 +308,9 @@ label.f > span, .label { font-family: var(--f-mono); font-weight: 700; font-size
 .pricerow .tpricebox input[type="text"] { min-height: 46px; font-size: 18px; }
 @media (max-width: 900px) { .pricelist { grid-template-columns: 1fr; } }
 
+.lastvisit { font-family: var(--f-mono); font-size: 14px; color: var(--brown); }
+.lastvisit b { color: var(--ink); }
+
 /* Tags tab */
 .board { display: grid; gap: 22px; }
 .board .grp { display: grid; gap: 10px; }
@@ -1000,13 +1003,36 @@ label.f > span, .label { font-family: var(--f-mono); font-weight: 700; font-size
         <p class="muted" style="margin:0;max-width:46ch">${customers.length ? "Pick someone from the list to see their tags or open a new one." : "Add a customer with a phone number, an email, or both. You can open their first tag straight away."}</p>
       </div></div>`;
     const mine = tags.filter((t) => t.customerId === c.id).sort((a, b) => (a.status === "closed") - (b.status === "closed") || (a.opened < b.opened ? 1 : -1));
+    const lv = lastVisit(c);
     return `<div class="who-head"><div><span class="label">Customer</span><h2>${esc(custName(c))}</h2>
           <span class="muted">${esc([c.phone, c.email].filter(Boolean).join(" · "))}</span>
+          <span class="lastvisit">${lv ? `Last visit <b>${esc(new Date(lv + "T12:00").toLocaleDateString([], { weekday: "short", month: "short", day: "numeric", year: "numeric" }))}</b> · ${esc(agoText(lv))}` : "No visits yet"}</span>
           ${c.spent ? `<div class="spentrow"><span>Spent <b>${m(Math.round(c.spent.total * 100))}</b></span>${["pos", "tablet", "staff"].filter((k) => c.spent[k]).map((k) => `<span>${{ pos: "POS", tablet: "Tablet", staff: "Added by hand" }[k]} ${m(Math.round(c.spent[k] * 100))}</span>`).join("")}${c.visits ? `<span>${c.visits} visit${c.visits === 1 ? "" : "s"}</span>` : ""}</div>` : ""}</div>
         <button class="btn ghost" data-act="cust-edit">Edit details</button>
         <button class="btn primary big" style="width:auto" data-act="tag-new">Open tag</button></div>
       <div class="tagcards">${mine.length ? mine.map(tagCardHtml).join("") : `<div class="empty">No tags yet. Tap <b>Open tag</b> to write up the alterations.</div>`}</div>`;
   }
+  // The customer's last visit (a calendar day): the latest of a fitting booked through the website
+  // that has happened, a purchase at either register, and a tag opened or paid on this tablet.
+  function lastVisit(c) {
+    const days = [];
+    if (c.lastBooked) days.push(dayOf(c.lastBooked));
+    if (c.lastBought) days.push(String(c.lastBought).slice(0, 10));
+    for (const t of tags) if (t.customerId === c.id) { if (t.opened) days.push(dayOf(t.opened)); if (t.closedAt) days.push(dayOf(t.closedAt)); }
+    for (const s of sales) if (s.customer && s.customer.id === c.id && !s.voided) days.push(dayOf(s.date));
+    const t0 = today();
+    return days.filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d) && d <= t0).sort().pop() || null;
+  }
+  function agoText(day) {
+    const n = Math.round((new Date(today() + "T12:00") - new Date(day + "T12:00")) / 864e5);
+    if (n <= 0) return "today";
+    if (n === 1) return "yesterday";
+    if (n < 14) return `${n} days ago`;
+    if (n < 60) return `${Math.round(n / 7)} weeks ago`;
+    if (n < 730) return `${Math.round(n / 30.4)} months ago`;
+    return `${Math.round(n / 365)} years ago`;
+  }
+
   function tagCardHtml(t, showWho) {
     const lines = tagLines(t); const [cls, label] = tagStatus(t);
     const c = showWho && customers.find((x) => x.id === t.customerId);

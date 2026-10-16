@@ -42,6 +42,12 @@
       if (!c.dirty) { c.name = r.name || c.name || ""; c.email = r.email || ""; c.phone = r.phone || ""; }
       c.spent = r.spent || c.spent || null;
       c.visits = Array.isArray(r.visits) ? r.visits.filter((v) => v.st !== "canceled").length : c.visits || 0;
+      // Dates for "last visit": the latest booking that has already happened, and the latest purchase.
+      const now = new Date().toISOString();
+      const booked = (Array.isArray(r.visits) ? r.visits : []).filter((v) => v.st !== "canceled" && v.s && v.s <= now).map((v) => v.s).sort().pop();
+      if (booked) c.lastBooked = booked;
+      const bought = (Array.isArray(r.purchases) ? r.purchases : []).map((x) => x.date).filter(Boolean).sort().pop();
+      if (bought) c.lastBought = bought;
       c.syncedAt = new Date().toISOString();
     }
     function findLocal(r) {
