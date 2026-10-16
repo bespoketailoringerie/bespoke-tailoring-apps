@@ -300,10 +300,15 @@ label.f > span, .label { font-family: var(--f-mono); font-weight: 700; font-size
 .pricesec { display: grid; gap: 0; }
 .pricesec h3 { font-family: var(--f-display); font-size: 22px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink); border-bottom: 2px solid var(--ink); padding-bottom: 2px; }
 .pricelist { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 28px; }
-.pricerow { display: grid; grid-template-columns: minmax(0, 1fr) 120px; gap: 12px; align-items: center; border-bottom: 1px solid var(--rule); padding: 8px 0; min-width: 0; }
+.pricerow { display: grid; grid-template-columns: 44px minmax(0, 1fr) 120px; gap: 10px; align-items: center; border-bottom: 1px solid var(--rule); padding: 8px 0; min-width: 0; }
 .pricerow label { display: grid; gap: 1px; min-width: 0; }
 .pricerow label span { font-size: 17px; overflow-wrap: anywhere; }
 .pricerow label small { font-family: var(--f-mono); font-size: 12px; color: var(--brown); }
+.pricerow .drag { width: 44px; height: 48px; border: 0; background: none; color: var(--brown); font-size: 24px; line-height: 1; cursor: grab; touch-action: none; padding: 0; user-select: none; -webkit-user-select: none; }
+.pricerow .drag:active { color: var(--red); }
+.pricerow.dragging { background: var(--gold-soft); box-shadow: 0 6px 18px var(--shade); position: relative; z-index: 2; outline: 2px solid var(--gold); }
+body.is-dragging, body.is-dragging * { cursor: grabbing !important; user-select: none !important; -webkit-user-select: none !important; }
+.draghint { font-size: 18px; color: var(--brown); }
 .pricerow.changed label span { font-weight: 600; color: var(--red); }
 .pricerow .tpricebox input[type="text"] { min-height: 46px; font-size: 18px; }
 @media (max-width: 900px) { .pricelist { grid-template-columns: 1fr; } }
@@ -476,6 +481,14 @@ label.f > span, .label { font-family: var(--f-mono); font-weight: 700; font-size
   const RUSH = [[4, "4 working days", 20], [3, "3 working days", 30], [2, "2 working days", 40], [1, "Tomorrow (1 working day)", 50]];
   const TAG_ROW = {};
   for (const sec of TAG) for (const [k, label, price, note] of sec.rows) TAG_ROW[k] = { section: sec.title, prefix: sec.prefix, label, price, note };
+  // A section's lines in the order set in Settings (lines not placed yet keep the paper tag's order, at the end).
+  function rowsOf(sec) {
+    const order = (settings.tagOrder || {})[sec.id];
+    if (!Array.isArray(order) || !order.length) return sec.rows;
+    const at = new Map(order.map((k, i) => [k, i]));
+    const pos = (r, i) => (at.has(r[0]) ? at.get(r[0]) : 1e6 + i);
+    return sec.rows.map((r, i) => [r, pos(r, i)]).sort((a, b) => a[1] - b[1]).map(([r]) => r);
+  }
   const itemName = (k) => (TAG_ROW[k] ? `${TAG_ROW[k].prefix}: ${TAG_ROW[k].label}` : k);
   const listPrice = (k) => { const r = TAG_ROW[k]; return r && typeof r.price === "number" ? r.price * 100 : 0; };
   const priceText = (k) => { const r = TAG_ROW[k]; if (!r || r.price == null) return ""; return Array.isArray(r.price) ? `$${r.price[0]}–${r.price[1]}` : `$${r.price}`; };
@@ -510,7 +523,7 @@ label.f > span, .label { font-family: var(--f-mono); font-weight: 700; font-size
   // What's on a tag, in order: ticked lines first as they appear on the paper tag, then extra lines.
   function tagLines(t) {
     const out = [];
-    for (const sec of TAG) for (const [k] of sec.rows) { const r = t.items && t.items[k]; if (r && r.on) out.push({ key: k, name: itemName(k), measure: r.measure || "", qty: Math.max(1, r.qty || 1) }); }
+    for (const sec of TAG) for (const [k] of rowsOf(sec)) { const r = t.items && t.items[k]; if (r && r.on) out.push({ key: k, name: itemName(k), measure: r.measure || "", qty: Math.max(1, r.qty || 1) }); }
     for (const o of t.others || []) if (String(o.label || "").trim()) out.push({ key: "other:" + String(o.label).trim().toLowerCase(), name: String(o.label).trim(), measure: o.measure || "", qty: Math.max(1, o.qty || 1), price: Math.max(0, Math.round(Number(o.price) || 0)) });
     return out;
   }
@@ -526,7 +539,7 @@ label.f > span, .label { font-family: var(--f-mono); font-weight: 700; font-size
   const tagStatus = (t) => (t.status === "closed" ? ["done", "Closed"] : t.status === "register" ? ["reg", "At the register"] : ["open", "Open"]);
 
   // ---------- state ----------
-  let settings = { services: [], nextReceipt: START_NO, nextTag: START_TAG, tagPrices: {} };
+  let settings = { services: [], nextReceipt: START_NO, nextTag: START_TAG, tagPrices: {}, tagOrder: {} };
   let sales = [];
   let customers = [];
   let tags = [];
@@ -546,7 +559,7 @@ label.f > span, .label { font-family: var(--f-mono); font-weight: 700; font-size
   async function saveSettings() {
     writeLocal();
     if (store !== "db") return;
-    try { await db.doc("settings/main").set({ services: settings.services, nextReceipt: settings.nextReceipt, nextTag: settings.nextTag, tagPrices: settings.tagPrices }); }
+    try { await db.doc("settings/main").set({ services: settings.services, nextReceipt: settings.nextReceipt, nextTag: settings.nextTag, tagPrices: settings.tagPrices, tagOrder: settings.tagOrder }); }
     catch { toast("Couldn't save the change. Check the tablet's internet connection.", true); }
   }
   async function saveSale(sale) {
@@ -706,7 +719,7 @@ label.f > span, .label { font-family: var(--f-mono); font-weight: 700; font-size
   async function connect() {
     const local = readLocal();
     if (local) { settings = { ...settings, ...local.settings }; sales = local.sales || []; customers = local.customers || []; syncState = local.syncState || syncState; tagState = local.tagState || tagState; link = { ...link, ...(local.link || {}) }; tags = local.tags || []; }
-    settings.tagPrices = settings.tagPrices || {}; settings.nextTag = settings.nextTag || START_TAG;
+    settings.tagPrices = settings.tagPrices || {}; settings.tagOrder = settings.tagOrder || {}; settings.nextTag = settings.nextTag || START_TAG;
     try { db = await window.claude?.use?.("db"); } catch { db = null; }
     if (!db) {
       store = "local";
@@ -889,16 +902,20 @@ label.f > span, .label { font-family: var(--f-mono); font-weight: 700; font-size
       <div class="seg" role="tablist" aria-label="Settings sections"><button role="tab" data-act="set-tab" data-t="prices" aria-pressed="true" aria-selected="true">Prices</button></div>
       <div class="setpanel">
         <p class="muted" style="margin:0">The price each alteration rings up at when a tag is closed. Changes save as soon as you leave a box. Leave a box empty to use the price menu.</p>
+        <p class="muted" style="margin:0">To change the order lines appear on the tag, press and drag the <span class="draghint" aria-hidden="true">⠿</span> handle on a line. Lines stay in their own section.</p>
         ${TAG.map((sec) => `<div class="pricesec"><h3>${esc(sec.title)}</h3>
-          <div class="pricelist">${sec.rows.map(([k, label]) => priceRowHtml(k, label)).join("")}</div></div>`).join("")}
+          <div class="pricelist" data-s="${sec.id}">${rowsOf(sec).map(([k, label]) => priceRowHtml(k, label)).join("")}</div></div>`).join("")}
         <div class="row"><span class="muted small" id="prices-changed">${changed ? `${changed} price${changed === 1 ? "" : "s"} changed from the menu.` : "Every price matches the menu."}</span>
           ${changed ? `<button class="btn small ghost" data-act="prices-reset">Put every price back to the menu</button>` : ""}</div>
+        <div class="row" id="order-row" ${Object.keys(settings.tagOrder || {}).length ? "" : "hidden"}><span class="muted small">The tag's lines are in your own order.</span>
+          <button class="btn small ghost" data-act="order-reset">Put the lines back in the paper tag's order</button></div>
       </div></div></div>`;
   }
   function priceRowHtml(k, label) {
     const r = TAG_ROW[k]; const own = settings.tagPrices[k];
     const menu = r.price == null ? "Not on the menu" : Array.isArray(r.price) ? `Menu $${r.price[0]}–${r.price[1]}, set at the register` : `Menu $${r.price}`;
-    return `<div class="pricerow ${own ? "changed" : ""}" id="pr-${k}">
+    return `<div class="pricerow ${own ? "changed" : ""}" id="pr-${k}" data-k="${k}">
+      <button type="button" class="drag" aria-label="Drag to move ${esc(label)}" title="Drag to move">⠿</button>
       <label for="pi-${k}"><span>${esc(label)}</span><small>${esc(menu)}${r.note ? " · " + esc(r.note) : ""}</small></label>
       <span class="tpricebox"><span aria-hidden="true">$</span><input type="text" id="pi-${k}" inputmode="decimal" autocomplete="off" data-in="price" data-k="${k}"
         value="${own ? (own / 100).toFixed(2).replace(/\.00$/, "") : ""}" placeholder="${typeof r.price === "number" ? r.price : ""}"></span>
@@ -1013,12 +1030,13 @@ label.f > span, .label { font-family: var(--f-mono); font-weight: 700; font-size
       <div class="tagcards">${mine.length ? mine.map(tagCardHtml).join("") : `<div class="empty">No tags yet. Tap <b>Open tag</b> to write up the alterations.</div>`}</div>`;
   }
   // The customer's last visit (a calendar day): the latest of a fitting booked through the website
-  // that has happened, a purchase at either register, and a tag opened or paid on this tablet.
+  // that has happened, a purchase at either register, and a tag paid on this tablet. Opening a tag
+  // doesn't count.
   function lastVisit(c) {
     const days = [];
     if (c.lastBooked) days.push(dayOf(c.lastBooked));
     if (c.lastBought) days.push(String(c.lastBought).slice(0, 10));
-    for (const t of tags) if (t.customerId === c.id) { if (t.opened) days.push(dayOf(t.opened)); if (t.closedAt) days.push(dayOf(t.closedAt)); }
+    for (const t of tags) if (t.customerId === c.id && t.status === "closed" && t.closedAt) days.push(dayOf(t.closedAt));
     for (const s of sales) if (s.customer && s.customer.id === c.id && !s.voided) days.push(dayOf(s.date));
     const t0 = today();
     return days.filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d) && d <= t0).sort().pop() || null;
@@ -1219,7 +1237,7 @@ label.f > span, .label { font-family: var(--f-mono); font-weight: 700; font-size
         return `<div class="tsec">${sec.paper
           ? `<h3>${sec.title}</h3>`
           : `<button class="tsec-toggle" data-act="tsec" data-s="${sec.id}" aria-expanded="${!!open}"><h3>${sec.title}${used ? ` <span class="tused">${used}</span>` : ""}</h3><span aria-hidden="true">${open ? "−" : "+"}</span></button>`}
-          ${open ? `<div class="trows">${sec.rows.map(([k, l]) => row(k, l)).join("")}</div>` : ""}</div>`;
+          ${open ? `<div class="trows">${rowsOf(sec).map(([k, l]) => row(k, l)).join("")}</div>` : ""}</div>`;
       }).join("")}
       <div class="tsec"><h3>Other</h3><div style="display:grid">${others || (ro ? `<p class="muted small" style="margin:8px 0">None</p>` : "")}</div>
         ${ro ? "" : `<button class="btn small" data-act="tago-add" style="justify-self:start;margin-top:8px">+ Add another alteration</button>`}</div>
@@ -1393,6 +1411,11 @@ label.f > span, .label { font-family: var(--f-mono); font-weight: 700; font-size
     "tag-close": (el) => { const t = tags.find((x) => x.id === el.dataset.id); if (t) closeTag(t); },
     "tag-discard": () => { UI.dialog = null; render(); },
     "set-tab": () => {},
+    "order-reset": () => {
+      UI.dialog = { type: "confirm", title: "Put the lines back in order?", text: "Every section of the tag goes back to the order on the shop's paper tag.", yes: "Use the paper tag's order",
+        run: async () => { settings.tagOrder = {}; await saveSettings(); render(); toast("The tag is back in the paper tag's order."); } };
+      renderDialog();
+    },
     "prices-reset": () => {
       UI.dialog = { type: "confirm", title: "Put every price back to the menu?", text: "Every alteration goes back to the printed price menu. Tags already paid keep the price they were paid at.", yes: "Use the menu prices",
         run: async () => { for (const k of Object.keys(settings.tagPrices)) if (TAG_ROW[k]) delete settings.tagPrices[k]; await saveSettings(); render(); toast("Every price is back to the menu."); } };
@@ -1528,6 +1551,46 @@ label.f > span, .label { font-family: var(--f-mono); font-weight: 700; font-size
     for (const t of tags) if (t.status === "register" && !still.has(t.id)) { t.status = "open"; saveDoc("tags", t); }
     if (!UI.cart.length) UI.cartCustomer = null;
   }
+
+  // Press and drag a line's handle in Settings to move it within its section; the order is saved on release.
+  let drag = null;
+  document.addEventListener("pointerdown", (ev) => {
+    const h = ev.target.closest && ev.target.closest(".pricerow .drag"); if (!h) return;
+    const row = h.closest(".pricerow"), list = row.parentElement;
+    ev.preventDefault();
+    try { h.setPointerCapture(ev.pointerId); } catch {}
+    drag = { row, list, handle: h, id: ev.pointerId, before: [...list.children].map((r) => r.dataset.k).join() };
+    row.classList.add("dragging"); document.body.classList.add("is-dragging");
+  });
+  document.addEventListener("pointermove", (ev) => {
+    if (!drag || ev.pointerId !== drag.id) return;
+    ev.preventDefault();
+    const others = [...drag.list.children].filter((r) => r !== drag.row);
+    // Count the lines that come before the finger in reading order (left to right, top to bottom).
+    let n = 0;
+    for (const r of others) {
+      const b = r.getBoundingClientRect(), cy = b.top + b.height / 2, cx = b.left + b.width / 2;
+      if (cy < ev.clientY - b.height / 2 || (Math.abs(cy - ev.clientY) <= b.height / 2 && cx < ev.clientX)) n++;
+    }
+    const ref = others[n] || null;
+    if (drag.row.nextElementSibling !== ref || (!ref && drag.list.lastElementChild !== drag.row)) drag.list.insertBefore(drag.row, ref);
+    // Scroll the page when the finger nears the top or bottom.
+    const page = drag.list.closest(".page");
+    if (page) { const pb = page.getBoundingClientRect(); if (ev.clientY < pb.top + 70) page.scrollTop -= 14; else if (ev.clientY > pb.bottom - 70) page.scrollTop += 14; }
+  });
+  async function endDrag(ev) {
+    if (!drag || (ev && ev.pointerId !== drag.id)) return;
+    const d = drag; drag = null;
+    d.row.classList.remove("dragging"); document.body.classList.remove("is-dragging");
+    const keys = [...d.list.children].map((r) => r.dataset.k);
+    if (keys.join() === d.before) return;
+    settings.tagOrder = { ...(settings.tagOrder || {}), [d.list.dataset.s]: keys };
+    await saveSettings();
+    const o = document.getElementById("order-row"); if (o) o.hidden = false;
+    toast(`${TAG_ROW[d.row.dataset.k] ? itemName(d.row.dataset.k) : "That line"} moved. The tag shows the new order.`);
+  }
+  document.addEventListener("pointerup", endDrag);
+  document.addEventListener("pointercancel", endDrag);
 
   function clearBtn(input) { const b = input.parentElement && input.parentElement.querySelector(".clear"); if (b) b.hidden = !input.value; }
 
