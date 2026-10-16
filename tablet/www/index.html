@@ -244,7 +244,9 @@ label.f > span, .label { font-family: var(--f-mono); font-weight: 700; font-size
 .trow input[type="text"] { min-height: 44px; font-size: 16px; padding: 6px 8px; background: var(--card); border-width: 0 0 2px; border-color: var(--ink); }
 .trow .qty button { width: 36px; height: 36px; font-size: 19px; }
 .trow .qty span { min-width: 34px; font-size: 15px; }
-.trow.other { grid-template-columns: minmax(0, 1fr) 96px auto auto; }
+.trow.other { grid-template-columns: minmax(0, 1fr) 96px 104px auto auto; }
+.tpricebox { display: flex; align-items: center; gap: 2px; border-bottom: 2px solid var(--ink); background: var(--card); padding-left: 8px; font-family: var(--f-mono); font-weight: 700; color: var(--red); }
+.tpricebox input[type="text"] { border: 0; min-height: 42px; padding: 6px 6px 6px 2px; background: transparent; font-family: var(--f-mono); font-weight: 700; color: var(--red); min-width: 0; }
 .tnotes { width: 100%; min-height: 110px; background: var(--card); border: 2px solid var(--ink); padding: 10px 12px; font-size: 17px; border-radius: 0; resize: vertical; }
 .thead { display: flex; gap: 12px; align-items: baseline; flex-wrap: wrap; }
 .thead h2 { color: var(--ink); }
@@ -289,6 +291,22 @@ label.f > span, .label { font-family: var(--f-mono); font-weight: 700; font-size
 .fsbtn svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: square; }
 .fsbtn .fs-out { display: none; } .fsbtn.on .fs-in { display: none; } .fsbtn.on .fs-out { display: inline; }
 .fsbtn:active { background: rgba(247, 238, 218, 0.15); }
+
+/* Settings */
+.gearbtn svg { fill: none; stroke: currentColor; stroke-width: 2.2; }
+.gearbtn { margin-right: -14px; }
+.fsbtn.on { background: var(--bg); color: var(--red); }
+.setpanel { display: grid; gap: 22px; }
+.pricesec { display: grid; gap: 0; }
+.pricesec h3 { font-family: var(--f-display); font-size: 22px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink); border-bottom: 2px solid var(--ink); padding-bottom: 2px; }
+.pricelist { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 28px; }
+.pricerow { display: grid; grid-template-columns: minmax(0, 1fr) 120px; gap: 12px; align-items: center; border-bottom: 1px solid var(--rule); padding: 8px 0; min-width: 0; }
+.pricerow label { display: grid; gap: 1px; min-width: 0; }
+.pricerow label span { font-size: 17px; overflow-wrap: anywhere; }
+.pricerow label small { font-family: var(--f-mono); font-size: 12px; color: var(--brown); }
+.pricerow.changed label span { font-weight: 600; color: var(--red); }
+.pricerow .tpricebox input[type="text"] { min-height: 46px; font-size: 18px; }
+@media (max-width: 900px) { .pricelist { grid-template-columns: 1fr; } }
 
 /* Tags tab */
 .board { display: grid; gap: 22px; }
@@ -343,6 +361,8 @@ label.f > span, .label { font-family: var(--f-mono); font-weight: 700; font-size
     </nav>
     <button class="linkbtn" id="link-btn" data-act="link-open" hidden></button>
     <div class="clock" id="clock"></div>
+    <button class="fsbtn gearbtn" id="gear-btn" data-act="nav" data-v="settings" aria-label="Settings" title="Settings">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.2"/><path d="M12 2.8v2.6M12 18.6v2.6M21.2 12h-2.6M5.4 12H2.8M18.5 5.5l-1.8 1.8M7.3 16.7l-1.8 1.8M18.5 18.5l-1.8-1.8M7.3 7.3 5.5 5.5"/><circle cx="12" cy="12" r="6.4"/></svg></button>
     <button class="fsbtn" id="fs-btn" data-act="fullscreen" aria-label="Full screen" title="Full screen" hidden>
       <svg viewBox="0 0 24 24" aria-hidden="true"><path class="fs-in" d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/><path class="fs-out" d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"/></svg></button>
   </header>
@@ -425,7 +445,7 @@ label.f > span, .label { font-family: var(--f-mono); font-weight: 700; font-size
       ["tr-waist", "Waist", 25], ["tr-thigh", "Thigh", null],
       ["tr-length", "Length", 15], ["tr-knee", "Knee", null],
       ["tr-bottom", "Bottom", null], ["tr-pin-hem", "Pin. Hem", null],
-      ["tr-cuffs", "With Cuffs", 20], ["tr-no-cuffs", "Without Cuffs", null],
+      ["tr-cuffs", "With Cuffs", 20], ["tr-no-cuffs", "Without Cuffs", 15],
       ["tr-rolled-hem", "Rolled Hem", 20], ["tr-crotch", "Crotch", 25],
       ["tr-taper", "Taper", 25],
     ] },
@@ -458,13 +478,17 @@ label.f > span, .label { font-family: var(--f-mono); font-weight: 700; font-size
   const priceText = (k) => { const r = TAG_ROW[k]; if (!r || r.price == null) return ""; return Array.isArray(r.price) ? `$${r.price[0]}–${r.price[1]}` : `$${r.price}`; };
   // The price a line rings up at: one saved at the register wins, then the price menu.
   const priceFor = (k) => settings.tagPrices[k] || listPrice(k);
+  // The price shown beside a line on the tag: the shop's own price if one is set, else the menu's.
+  const shownPrice = (k) => (settings.tagPrices[k] ? "$" + (settings.tagPrices[k] / 100).toFixed(2).replace(/\.00$/, "") : priceText(k));
+  // A tag line's price: an extra line carries its own; a printed line uses the price list.
+  const linePrice = (l) => (l.key.startsWith("other:") ? l.price || 0 : priceFor(l.key));
   const tagNo = (t) => `#${t.no}`;
   const rushOf = (t) => RUSH.find(([n]) => n === t.rush) || null;
   // What the tag comes to at menu (or saved) prices. Lines without a set price are listed instead.
   function tagTotal(t) {
     let sum = 0; const unset = [];
     for (const l of tagLines(t)) {
-      const p = l.key.startsWith("other:") ? 0 : priceFor(l.key);
+      const p = linePrice(l);
       if (p) sum += p * l.qty;
       else unset.push(l.name + (priceText(l.key) ? ` (${priceText(l.key)})` : ""));
     }
@@ -484,7 +508,7 @@ label.f > span, .label { font-family: var(--f-mono); font-weight: 700; font-size
   function tagLines(t) {
     const out = [];
     for (const sec of TAG) for (const [k] of sec.rows) { const r = t.items && t.items[k]; if (r && r.on) out.push({ key: k, name: itemName(k), measure: r.measure || "", qty: Math.max(1, r.qty || 1) }); }
-    for (const o of t.others || []) if (String(o.label || "").trim()) out.push({ key: "other:" + String(o.label).trim().toLowerCase(), name: String(o.label).trim(), measure: o.measure || "", qty: Math.max(1, o.qty || 1) });
+    for (const o of t.others || []) if (String(o.label || "").trim()) out.push({ key: "other:" + String(o.label).trim().toLowerCase(), name: String(o.label).trim(), measure: o.measure || "", qty: Math.max(1, o.qty || 1), price: Math.max(0, Math.round(Number(o.price) || 0)) });
     return out;
   }
   // Due dates are plain calendar days (YYYY-MM-DD). A tag either has one or says "No due date".
@@ -599,7 +623,7 @@ label.f > span, .label { font-family: var(--f-mono); font-weight: 700; font-size
           const c = customers.find((x) => x.id === t.customerId);
           if (c && !c.remoteId && !c.unlinked) return null;             // its customer isn't on the website yet
           const { sum, unset } = tagTotal(t);
-          const lines = tagLines(t).map((l) => ({ name: l.name, measure: l.measure, qty: l.qty, price: l.key.startsWith("other:") ? 0 : priceFor(l.key) }));
+          const lines = tagLines(t).map((l) => ({ name: l.name, measure: l.measure, qty: l.qty, price: linePrice(l) }));
           const rush = rushOf(t); if (rush) lines.push({ name: `Rush: ${rush[1]}`, measure: "", qty: 1, price: rush[2] * 100 });
           return {
             id: t.id, no: t.no, customerId: (c && c.remoteId) || null,
@@ -761,7 +785,9 @@ label.f > span, .label { font-family: var(--f-mono); font-weight: 700; font-size
       const b = document.getElementById("tab-" + v);
       if (UI.view === v) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current");
     }
-    main.innerHTML = UI.view === "customers" ? customersView() : UI.view === "tags" ? tagsView() : registerView();
+    const gear = document.getElementById("gear-btn");
+    if (gear) { gear.classList.toggle("on", UI.view === "settings"); if (UI.view === "settings") gear.setAttribute("aria-current", "page"); else gear.removeAttribute("aria-current"); }
+    main.innerHTML = UI.view === "settings" ? settingsView() : UI.view === "customers" ? customersView() : UI.view === "tags" ? tagsView() : registerView();
     const urgent = tags.filter((t) => t.status !== "closed" && t.due && t.due <= today()).length;
     document.getElementById("tab-tags").innerHTML = "Tags" + (urgent ? ` <span class="qbadge" title="Due today or overdue">${urgent}</span>` : "");
     renderDialog();
@@ -850,6 +876,52 @@ label.f > span, .label { font-family: var(--f-mono); font-weight: 700; font-size
     </div>`;
   }
   // Tags tab: every open tag, soonest due first, grouped by when it's due.
+  // ---------- Settings ----------
+  // One tab for now: Prices. Each alteration on the tag can be given the shop's own price; an empty
+  // box means the printed price menu (and, for a range like Fix Beading, a price set at the register).
+  function settingsView() {
+    const changed = Object.keys(settings.tagPrices || {}).filter((k) => TAG_ROW[k] && settings.tagPrices[k]).length;
+    return `<div class="page"><div class="wrap">
+      <div><span class="label">Settings</span><h2>Settings</h2></div>
+      <div class="seg" role="tablist" aria-label="Settings sections"><button role="tab" data-act="set-tab" data-t="prices" aria-pressed="true" aria-selected="true">Prices</button></div>
+      <div class="setpanel">
+        <p class="muted" style="margin:0">The price each alteration rings up at when a tag is closed. Changes save as soon as you leave a box. Leave a box empty to use the price menu.</p>
+        ${TAG.map((sec) => `<div class="pricesec"><h3>${esc(sec.title)}</h3>
+          <div class="pricelist">${sec.rows.map(([k, label]) => priceRowHtml(k, label)).join("")}</div></div>`).join("")}
+        <div class="row"><span class="muted small" id="prices-changed">${changed ? `${changed} price${changed === 1 ? "" : "s"} changed from the menu.` : "Every price matches the menu."}</span>
+          ${changed ? `<button class="btn small ghost" data-act="prices-reset">Put every price back to the menu</button>` : ""}</div>
+      </div></div></div>`;
+  }
+  function priceRowHtml(k, label) {
+    const r = TAG_ROW[k]; const own = settings.tagPrices[k];
+    const menu = r.price == null ? "Not on the menu" : Array.isArray(r.price) ? `Menu $${r.price[0]}–${r.price[1]}, set at the register` : `Menu $${r.price}`;
+    return `<div class="pricerow ${own ? "changed" : ""}" id="pr-${k}">
+      <label for="pi-${k}"><span>${esc(label)}</span><small>${esc(menu)}${r.note ? " · " + esc(r.note) : ""}</small></label>
+      <span class="tpricebox"><span aria-hidden="true">$</span><input type="text" id="pi-${k}" inputmode="decimal" autocomplete="off" data-in="price" data-k="${k}"
+        value="${own ? (own / 100).toFixed(2).replace(/\.00$/, "") : ""}" placeholder="${typeof r.price === "number" ? r.price : ""}"></span>
+    </div>`;
+  }
+  async function savePrice(input) {
+    const k = input.dataset.k; const raw = String(input.value || "").trim();
+    const before = settings.tagPrices[k] || 0;
+    let next = 0;
+    if (raw) {
+      next = toCents(raw);
+      if (!(next > 0) || next > 1000000) { toast("Enter a price like 25 or 32.50, or leave the box empty for the menu price.", true); input.value = before ? (before / 100).toFixed(2).replace(/\.00$/, "") : ""; return; }
+    }
+    // Typing the menu price is the same as using the menu.
+    if (next && next === listPrice(k)) next = 0;
+    if (next === before) { input.value = next ? (next / 100).toFixed(2).replace(/\.00$/, "") : ""; return; }
+    if (next) settings.tagPrices[k] = next; else delete settings.tagPrices[k];
+    input.value = next ? (next / 100).toFixed(2).replace(/\.00$/, "") : "";
+    const rowEl = document.getElementById("pr-" + k); if (rowEl) rowEl.classList.toggle("changed", !!next);
+    await saveSettings();
+    const r = TAG_ROW[k];
+    toast(`${itemName(k)} now rings up at ${next ? m(next) : Array.isArray(r.price) ? "a price set at the register" : listPrice(k) ? m(listPrice(k)) + " (the menu price)" : "a price set at the register"}.`);
+    const n = Object.keys(settings.tagPrices).filter((x) => TAG_ROW[x] && settings.tagPrices[x]).length;
+    const c = document.getElementById("prices-changed"); if (c) c.textContent = n ? `${n} price${n === 1 ? "" : "s"} changed from the menu.` : "Every price matches the menu.";
+  }
+
   // A search box with an X that clears it.
   const searchBox = (id, kind, value, placeholder) => `<div class="searchbox">
       <input type="text" id="${id}" placeholder="${esc(placeholder)}" value="${esc(value)}" data-in="${kind}" autocomplete="off" aria-label="${esc(placeholder)}">
@@ -1099,16 +1171,17 @@ label.f > span, .label { font-family: var(--f-mono); font-weight: 700; font-size
     const t = d.tag; const c = customers.find((x) => x.id === t.customerId);
     const ro = d.readOnly;
     const row = (k, label) => {
-      const r = t.items[k] || {}; const on = !!r.on; const pt = priceText(k);
+      const r = t.items[k] || {}; const on = !!r.on; const pt = shownPrice(k);
       return `<div class="trow ${on ? "on" : ""}" id="tr-${k}">
         <button class="tick" data-act="tag-tick" data-k="${k}" aria-pressed="${on}" ${ro ? "disabled" : ""}><i></i><span>${esc(label)}${pt ? ` <small class="tprice">${pt}</small>` : ""}</span></button>
-        <input type="text" id="tm-${k}" value="${esc(r.measure || "")}" data-in="tagm" data-k="${k}" placeholder="Amount" aria-label="${esc(label)} amount" autocomplete="off" ${ro ? "readonly" : ""}>
+        <input type="text" id="tm-${k}" value="${esc(r.measure || "")}" data-in="tagm" data-k="${k}" placeholder="Measure" aria-label="${esc(label)} measurement" autocomplete="off" ${ro ? "readonly" : ""}>
         <span class="qty" aria-label="How many"><button data-act="tag-qty" data-k="${k}" data-d="-1" aria-label="One fewer" ${ro ? "disabled" : ""}>−</button><span id="tq-${k}">×${Math.max(1, r.qty || 1)}</span><button data-act="tag-qty" data-k="${k}" data-d="1" aria-label="One more" ${ro ? "disabled" : ""}>+</button></span>
       </div>`;
     };
     const others = (t.others || []).map((o, i) => `<div class="trow other on">
         <input type="text" id="to-l-${i}" value="${esc(o.label)}" data-in="tago" data-i="${i}" data-k="label" placeholder="Alteration" aria-label="Alteration" autocomplete="off" ${ro ? "readonly" : ""}>
-        <input type="text" id="to-m-${i}" value="${esc(o.measure || "")}" data-in="tago" data-i="${i}" data-k="measure" placeholder="Amount" aria-label="Amount" autocomplete="off" ${ro ? "readonly" : ""}>
+        <input type="text" id="to-m-${i}" value="${esc(o.measure || "")}" data-in="tago" data-i="${i}" data-k="measure" placeholder="Measure" aria-label="Measurement" autocomplete="off" ${ro ? "readonly" : ""}>
+        <span class="tpricebox"><span aria-hidden="true">$</span><input type="text" id="to-p-${i}" value="${o.price ? (o.price / 100).toFixed(2).replace(/\.00$/, "") : ""}" data-in="tago" data-i="${i}" data-k="price" placeholder="Price" aria-label="Price" inputmode="decimal" autocomplete="off" ${ro ? "readonly" : ""}></span>
         <span class="qty"><button data-act="tago-qty" data-i="${i}" data-d="-1" aria-label="One fewer" ${ro ? "disabled" : ""}>−</button><span id="toq-${i}">×${Math.max(1, o.qty || 1)}</span><button data-act="tago-qty" data-i="${i}" data-d="1" aria-label="One more" ${ro ? "disabled" : ""}>+</button></span>
         ${ro ? "" : `<button class="btn small ghost" data-act="tago-del" data-i="${i}" aria-label="Remove this line">✕</button>`}
       </div>`).join("");
@@ -1288,13 +1361,19 @@ label.f > span, .label { font-family: var(--f-mono); font-weight: 700; font-size
       if (Number(el.dataset.d) > 0 && !r.on) { r.on = true; const rowEl = document.getElementById("tr-" + k); if (rowEl) rowEl.classList.add("on"); }
       const q = document.getElementById("tq-" + k); if (q) q.textContent = "×" + r.qty; refreshTotal();
     },
-    "tago-add": () => { const t = UI.dialog.tag; t.others = t.others || []; t.others.push({ label: "", measure: "", qty: 1 }); renderDialog(); const i = document.getElementById(`to-l-${t.others.length - 1}`); if (i) i.focus(); },
+    "tago-add": () => { const t = UI.dialog.tag; t.others = t.others || []; t.others.push({ label: "", measure: "", qty: 1, price: 0 }); renderDialog(); const i = document.getElementById(`to-l-${t.others.length - 1}`); if (i) i.focus(); },
     "tago-del": (el) => { UI.dialog.tag.others.splice(Number(el.dataset.i), 1); renderDialog(); },
     "tago-qty": (el) => { const o = UI.dialog.tag.others[Number(el.dataset.i)]; o.qty = Math.max(1, Math.min(99, (o.qty || 1) + Number(el.dataset.d))); const q = document.getElementById("toq-" + el.dataset.i); if (q) q.textContent = "×" + o.qty; refreshTotal(); },
     "tag-save": async () => { const t = await storeTag(); if (!t) return; UI.dialog = null; render(); toast(`Tag ${tagNo(t)} saved.`); },
     "tag-save-close": async () => { const t = await storeTag(); if (!t) return; UI.dialog = null; closeTag(t); },
     "tag-close": (el) => { const t = tags.find((x) => x.id === el.dataset.id); if (t) closeTag(t); },
     "tag-discard": () => { UI.dialog = null; render(); },
+    "set-tab": () => {},
+    "prices-reset": () => {
+      UI.dialog = { type: "confirm", title: "Put every price back to the menu?", text: "Every alteration goes back to the printed price menu. Tags already paid keep the price they were paid at.", yes: "Use the menu prices",
+        run: async () => { for (const k of Object.keys(settings.tagPrices)) if (TAG_ROW[k]) delete settings.tagPrices[k]; await saveSettings(); render(); toast("Every price is back to the menu."); } };
+      renderDialog();
+    },
     "fullscreen": async () => { const ok = await setFullscreen(!fsOn); if (!ok) toast("Full screen isn't available here.", true); },
     "link-open": () => { UI.dialog = { type: "link", key: link.key, base: link.base }; renderDialog(); },
     "link-sync": async () => { if (sync) { renderDialog(); await syncAll(); renderDialog(); } },
@@ -1389,7 +1468,7 @@ label.f > span, .label { font-family: var(--f-mono); font-weight: 700; font-size
   }
   async function storeTag() {
     const t = UI.dialog.tag;
-    t.others = (t.others || []).filter((o) => String(o.label || "").trim() || String(o.measure || "").trim());
+    t.others = (t.others || []).filter((o) => String(o.label || "").trim() || String(o.measure || "").trim() || o.price > 0);
     if (t.others.some((o) => !String(o.label || "").trim())) { toast("Name each extra alteration, or remove the line.", true); return null; }
     for (const [k, r] of Object.entries(t.items)) if (!r.on && !String(r.measure || "").trim() && (r.qty || 1) === 1) delete t.items[k];
     if (!tagLines(t).length && !String(t.notes || "").trim()) { toast("Tick at least one alteration or write a note first.", true); return null; }
@@ -1411,7 +1490,7 @@ label.f > span, .label { font-family: var(--f-mono); font-weight: 700; font-size
     if (UI.cart.length && !(UI.cartCustomer && UI.cartCustomer.id === t.customerId)) { UI.view = "register"; render(); return toast("Finish or clear the sale that's on the register first.", true); }
     if (UI.cart.some((l) => l.tagId === t.id)) { UI.view = "register"; render(); return; }
     const c = customers.find((x) => x.id === t.customerId);
-    for (const l of lines) UI.cart.push({ key: uid(), name: l.name, measure: l.measure, qty: l.qty, price: priceFor(l.key), disc: null, tagId: t.id, tagNo: t.no, tagKey: l.key.startsWith("other:") ? "" : l.key, range: TAG_ROW[l.key] && Array.isArray(TAG_ROW[l.key].price) ? priceText(l.key) : "", note: TAG_ROW[l.key] && TAG_ROW[l.key].note ? TAG_ROW[l.key].note : "" });
+    for (const l of lines) UI.cart.push({ key: uid(), name: l.name, measure: l.measure, qty: l.qty, price: linePrice(l), disc: null, tagId: t.id, tagNo: t.no, tagKey: l.key.startsWith("other:") ? "" : l.key, range: TAG_ROW[l.key] && Array.isArray(TAG_ROW[l.key].price) ? priceText(l.key) : "", note: TAG_ROW[l.key] && TAG_ROW[l.key].note ? TAG_ROW[l.key].note : "" });
     const rush = rushOf(t);
     if (rush) UI.cart.push({ key: uid(), name: `Rush: ${rush[1]}`, measure: "", qty: 1, price: rush[2] * 100, disc: null, tagId: t.id, tagNo: t.no, tagKey: "", rush: true });
     UI.cartCustomer = c ? { id: c.id, name: c.name, phone: c.phone, email: c.email } : null;
@@ -1480,7 +1559,12 @@ label.f > span, .label { font-family: var(--f-mono); font-weight: 700; font-size
       if (el.value.trim() && !r.on) { r.on = true; const rowEl = document.getElementById("tr-" + k); if (rowEl) rowEl.classList.add("on"); refreshTotal(); }
       return;
     }
-    if (kind === "tago") { UI.dialog.tag.others[Number(el.dataset.i)][el.dataset.k] = el.value; if (el.dataset.k === "label") refreshTotal(); return; }
+    if (kind === "tago") {
+      const o = UI.dialog.tag.others[Number(el.dataset.i)];
+      if (el.dataset.k === "price") o.price = Math.max(0, toCents(el.value)); else o[el.dataset.k] = el.value;
+      if (el.dataset.k !== "measure") refreshTotal();
+      return;
+    }
     if (kind === "tagn") { UI.dialog.tag.notes = el.value; return; }
     if (kind === "tagdue") {
       const t = UI.dialog.tag; t.due = /^\d{4}-\d{2}-\d{2}$/.test(el.value) ? el.value : null; if (t.due) t.noDue = false;
@@ -1497,9 +1581,11 @@ label.f > span, .label { font-family: var(--f-mono); font-weight: 700; font-size
       const chg = document.getElementById("chg"); if (chg) { chg.hidden = !(amt > due); chg.textContent = "Change " + m(Math.max(0, amt - due)); }
     }
   });
+  document.addEventListener("change", (ev) => { if (ev.target.dataset && ev.target.dataset.in === "price") savePrice(ev.target); });
   document.addEventListener("change", (ev) => { if (ev.target.dataset.in === "svc" && ev.target.type === "checkbox") UI.dialog.rows[Number(ev.target.dataset.i)].fixed = ev.target.checked; });
   document.addEventListener("keydown", (ev) => {
     if (ev.key === "Escape" && UI.dialog && UI.dialog.type !== "tag") return A.close();
+    if (ev.key === "Enter" && ev.target.dataset && ev.target.dataset.in === "price") { ev.preventDefault(); ev.target.blur(); return; }
     if (ev.key !== "Enter" || !UI.dialog || ev.target.tagName !== "INPUT" || ev.target.type === "checkbox") return;
     const go = { custom: "custom-add", disc: "disc-apply", pay: "pay-add", "edit-svc": "svc-save", cust: "cust-save" }[UI.dialog.type];
     if (go) { ev.preventDefault(); A[go](); }
