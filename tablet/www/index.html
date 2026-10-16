@@ -235,7 +235,7 @@ label.f > span, .label { font-family: var(--f-mono); font-weight: 700; font-size
 .tsec { display: grid; gap: 0; }
 .tsec h3 { font-family: var(--f-display); font-size: 22px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink); border-bottom: 2px solid var(--ink); padding-bottom: 2px; margin-bottom: 2px; }
 .trows { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 22px; }
-.trow { display: grid; grid-template-columns: minmax(0, 1fr) 96px auto; gap: 8px; align-items: center; border-bottom: 1px solid #a88d5c; padding: 6px 0; min-width: 0; }
+.trow { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: center; border-bottom: 1px solid #a88d5c; padding: 6px 0; min-width: 0; }
 .trow .tick { display: flex; align-items: center; gap: 10px; border: 0; background: none; padding: 0; min-height: 48px; text-align: left; cursor: pointer; color: var(--ink); font-size: 17px; min-width: 0; }
 .trow .tick i { width: 26px; height: 26px; border: 2px solid var(--ink); flex: none; display: grid; place-items: center; background: var(--card); }
 .trow.on .tick i { background: var(--red); border-color: var(--red); }
@@ -244,7 +244,7 @@ label.f > span, .label { font-family: var(--f-mono); font-weight: 700; font-size
 .trow input[type="text"] { min-height: 44px; font-size: 16px; padding: 6px 8px; background: var(--card); border-width: 0 0 2px; border-color: var(--ink); }
 .trow .qty button { width: 36px; height: 36px; font-size: 19px; }
 .trow .qty span { min-width: 34px; font-size: 15px; }
-.trow.other { grid-template-columns: minmax(0, 1fr) 96px 104px auto auto; }
+.trow.other { grid-template-columns: minmax(0, 1fr) 120px auto auto; }
 .tpricebox { display: flex; align-items: center; gap: 2px; border-bottom: 2px solid var(--ink); background: var(--card); padding-left: 8px; font-family: var(--f-mono); font-weight: 700; color: var(--red); }
 .tpricebox input[type="text"] { border: 0; min-height: 42px; padding: 6px 6px 6px 2px; background: transparent; font-family: var(--f-mono); font-weight: 700; color: var(--red); min-width: 0; }
 .tnotes { width: 100%; min-height: 110px; background: var(--card); border: 2px solid var(--ink); padding: 10px 12px; font-size: 17px; border-radius: 0; resize: vertical; }
@@ -347,7 +347,7 @@ label.f > span, .label { font-family: var(--f-mono); font-weight: 700; font-size
   .people .roster { border-right: 0; border-bottom: 2px solid var(--red); }
   .roster .who-list { max-height: 50vh; }
   .people .detail { overflow: visible; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
-  .trow { grid-template-columns: minmax(0, 1fr) 80px auto; }
+  .trow { grid-template-columns: minmax(0, 1fr) auto; }
 }
 </style>
 
@@ -1174,13 +1174,11 @@ label.f > span, .label { font-family: var(--f-mono); font-weight: 700; font-size
       const r = t.items[k] || {}; const on = !!r.on; const pt = shownPrice(k);
       return `<div class="trow ${on ? "on" : ""}" id="tr-${k}">
         <button class="tick" data-act="tag-tick" data-k="${k}" aria-pressed="${on}" ${ro ? "disabled" : ""}><i></i><span>${esc(label)}${pt ? ` <small class="tprice">${pt}</small>` : ""}</span></button>
-        <input type="text" id="tm-${k}" value="${esc(r.measure || "")}" data-in="tagm" data-k="${k}" placeholder="Measure" aria-label="${esc(label)} measurement" autocomplete="off" ${ro ? "readonly" : ""}>
         <span class="qty" aria-label="How many"><button data-act="tag-qty" data-k="${k}" data-d="-1" aria-label="One fewer" ${ro ? "disabled" : ""}>−</button><span id="tq-${k}">×${Math.max(1, r.qty || 1)}</span><button data-act="tag-qty" data-k="${k}" data-d="1" aria-label="One more" ${ro ? "disabled" : ""}>+</button></span>
       </div>`;
     };
     const others = (t.others || []).map((o, i) => `<div class="trow other on">
         <input type="text" id="to-l-${i}" value="${esc(o.label)}" data-in="tago" data-i="${i}" data-k="label" placeholder="Alteration" aria-label="Alteration" autocomplete="off" ${ro ? "readonly" : ""}>
-        <input type="text" id="to-m-${i}" value="${esc(o.measure || "")}" data-in="tago" data-i="${i}" data-k="measure" placeholder="Measure" aria-label="Measurement" autocomplete="off" ${ro ? "readonly" : ""}>
         <span class="tpricebox"><span aria-hidden="true">$</span><input type="text" id="to-p-${i}" value="${o.price ? (o.price / 100).toFixed(2).replace(/\.00$/, "") : ""}" data-in="tago" data-i="${i}" data-k="price" placeholder="Price" aria-label="Price" inputmode="decimal" autocomplete="off" ${ro ? "readonly" : ""}></span>
         <span class="qty"><button data-act="tago-qty" data-i="${i}" data-d="-1" aria-label="One fewer" ${ro ? "disabled" : ""}>−</button><span id="toq-${i}">×${Math.max(1, o.qty || 1)}</span><button data-act="tago-qty" data-i="${i}" data-d="1" aria-label="One more" ${ro ? "disabled" : ""}>+</button></span>
         ${ro ? "" : `<button class="btn small ghost" data-act="tago-del" data-i="${i}" aria-label="Remove this line">✕</button>`}
