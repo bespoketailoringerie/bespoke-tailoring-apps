@@ -278,6 +278,13 @@ tr.sel td:first-child { box-shadow: inset 4px 0 0 var(--red); }
 .pays { display: grid; gap: 6px; }
 .pay { display: flex; justify-content: space-between; align-items: center; font-family: var(--f-mono); }
 .terminal { border: 2px solid var(--gold); padding: 14px 16px; display: grid; gap: 10px; background: var(--gold-soft); }
+.readerwait { border-color: var(--red); background: var(--card); justify-items: center; text-align: center; padding: 20px 16px; }
+.readerdots { display: flex; gap: 8px; }
+.readerdots i { width: 10px; height: 10px; background: var(--red); animation: rdot 1.2s infinite ease-in-out; }
+.readerdots i:nth-child(2) { animation-delay: .2s; } .readerdots i:nth-child(3) { animation-delay: .4s; }
+@keyframes rdot { 0%, 80%, 100% { opacity: .2; } 40% { opacity: 1; } }
+.readernote { padding: 10px 12px; font-size: 15px; border-left: 4px solid var(--good); background: var(--good-soft); color: var(--ink); text-align: left; }
+.readernote.bad { border-left-color: var(--red); background: var(--gold-soft); }
 .terminal .money { font-size: 26px; font-weight: 700; color: var(--red); }
 
 /* Receipt preview */
@@ -373,6 +380,7 @@ table.mkup td { padding-block: 6px; }
 <div id="app"></div>
 <script src="customer-sync.js"></script>
 <script src="tag-sync.js"></script>
+<script src="card-pay.js"></script>
 <script>// Money math for the register. All amounts are whole cents.
 (function (root) {
   const pct = (v) => Math.max(0, Math.min(100, Number(v) || 0));
@@ -799,6 +807,8 @@ window.DEFAULT_PRICE_LIST = {"name":"Dress","updated":"Aug 13, 2026, 5:29 PM","c
 
   // ---------- the website's customer list ----------
   let sync = null;
+  let card = null;   // the card reader, through the website (shared/card-pay.js)
+  const CARD_PENDING = "bespoke-card-pending";
   function startSync() {
     if (PREVIEW || !window.CustomerSync) return;
     sync = window.CustomerSync.createSync({
@@ -813,6 +823,7 @@ window.DEFAULT_PRICE_LIST = {"name":"Dress","updated":"Aug 13, 2026, 5:29 PM","c
       },
     });
     startTagSync();
+    if (window.CardPay) { card = window.CardPay.createCardPay({ base: S.settings.websiteUrl, key: S.settings.syncKey }); if (S.settings.syncKey) card.check().then(checkCardLeftover); }
     if (S.settings.syncKey) syncAll();
     setInterval(() => { configureSync(); if (S.settings.syncKey) syncAll(); }, 2 * 60 * 1000);
   }
@@ -820,6 +831,7 @@ window.DEFAULT_PRICE_LIST = {"name":"Dress","updated":"Aug 13, 2026, 5:29 PM","c
   const syncAll = () => (tagSync ? tagSync.syncNow() : sync.syncNow());
   function configureSync() {
     sync.configure({ base: S.settings.websiteUrl, key: S.settings.syncKey });
+    if (card && (card._base !== S.settings.websiteUrl || card._key !== S.settings.syncKey)) { card._base = S.settings.websiteUrl; card._key = S.settings.syncKey; card.configure({ base: S.settings.websiteUrl, key: S.settings.syncKey }); if (S.settings.syncKey) card.check(); }
     if (tagSync) tagSync.configure({ base: S.settings.websiteUrl, key: S.settings.syncKey });
   }
 
@@ -1293,10 +1305,14 @@ window.DEFAULT_PRICE_LIST = {"name":"Dress","updated":"Aug 13, 2026, 5:29 PM","c
       const paidBy = [...new Set(sale.payments.filter((p) => p.amount > 0).map((p) => p.method))];
       return wrap(`<h2>Refund ${m(d.amount)}</h2><p class="muted" style="margin:0">Receipt #${sale.no} was paid by ${esc(paidBy.join(" and ") || "—")}.</p>
         <div class="choice">${["Card", "Cash", "Check", "Other"].map((x) => `<button data-act="rf-method" data-m="${x}" aria-pressed="${d.method === x}">${x === "Card" ? "Back to card" : x}</button>`).join("")}</div>
-        ${d.method === "Card" ? `<div class="terminal"><span class="label">On the card terminal</span><span>Run a refund for</span><span class="money">${m(d.amount)}</span><span class="small">When the terminal shows it's done, record it here.</span></div>` : ""}
+        ${d.method === "Card" && refundByReader(sale, d) ? `<div class="terminal"><span class="label">Back to the card${card.state.test ? ` <span class="pill plain">Test mode</span>` : ""}</span><span class="money">${m(d.amount)}</span>
+            <span>Goes back to ${esc(readerRefundable(sale).map((x) => window.CardPay.describe(x.p.reader) || "the card").join(" and "))}. The customer doesn't need the card.</span>
+            <span class="small muted">Rather do it on the reader? <button class="btn small ghost" data-act="rf-manual">Record a refund done on the reader</button></span></div>`
+          : d.method === "Card" ? `<div class="terminal"><span class="label">On the card terminal</span><span>Run a refund for</span><span class="money">${m(d.amount)}</span><span class="small">When the terminal shows it's done, record it here.</span></div>` : ""}
+        ${d.rfNote ? `<div class="readernote bad" role="status">${esc(d.rfNote)}</div>` : ""}
         ${d.method === "Cash" ? `<div class="terminal"><span class="label">From the drawer</span><span>Give the customer</span><span class="money">${m(d.amount)}</span></div>` : ""}
         <label class="f"><span>Note (optional)</span><input type="text" id="rf-note" value="${esc(d.note)}" data-in="dlg" data-k="note" placeholder="Reason for the return"></label>
-        <div class="foot"><button class="btn" data-act="close">Cancel</button><button class="btn primary" data-act="rf-done">Record refund</button></div>`);
+        <div class="foot"><button class="btn" data-act="close">Cancel</button><button class="btn primary" data-act="rf-done" ${d.refunding ? "disabled" : ""}>${d.method === "Card" && refundByReader(sale, d) ? (d.refunding ? "Refunding…" : `Refund ${m(d.amount)} to the card`) : "Record refund"}</button></div>`);
     }
     if (d.type === "item") return wrap(itemFormHtml(d), true);
     if (d.type === "assign") {
@@ -1345,10 +1361,16 @@ window.DEFAULT_PRICE_LIST = {"name":"Dress","updated":"Aug 13, 2026, 5:29 PM","c
     const lineBtn = (x) => `<button data-act="pay-method" data-m="${x}" aria-pressed="${d.method === x}">${x}</button>`;
     let entry = "";
     if (st.due > 0) {
-      if (d.method === "Card") entry = `<div class="terminal"><span class="label">On the card terminal</span><span>Key in this amount and have the customer tap or insert their card</span>
+      if (d.method === "Card" && d.reader) entry = readerWaitHtml(d);
+      else if (d.method === "Card" && readerOn(d)) entry = `<div class="terminal"><span class="label">Card reader${card.state.test ? ` <span class="pill plain">Test mode · no money moves</span>` : ""}</span>
+          <div class="row"><input type="text" id="pay-amt" inputmode="decimal" style="max-width:160px;font-size:20px" class="money" value="${esc(d.amount)}" data-in="dlg" data-k="amount"><span class="small muted">Change it to split the payment.</span></div>
+          <div class="row"><button class="btn primary" data-act="reader-send" id="reader-send" style="min-height:56px;font-size:15px">Send ${m(Math.min(amt, st.due) || st.due)} to the card reader</button></div>
+          <span class="small muted">Reader not working? <button class="btn small ghost" data-act="reader-manual">Key it in on the reader instead</button></span></div>`;
+      else if (d.method === "Card") entry = `<div class="terminal"><span class="label">On the card terminal</span><span>Key in this amount and have the customer tap or insert their card</span>
           <div class="row"><input type="text" id="pay-amt" inputmode="decimal" style="max-width:160px;font-size:20px" class="money" value="${esc(d.amount)}" data-in="dlg" data-k="amount"><span class="small muted">Change it to split the payment.</span></div>
           <label class="f"><span>Approval code (optional)</span><input type="text" id="pay-ref" style="max-width:220px" value="${esc(d.ref)}" data-in="dlg" data-k="ref"></label>
-          <div class="row"><button class="btn gold" data-act="pay-add">Approved on the terminal</button><button class="btn ghost" data-act="pay-declined">Declined</button></div></div>`;
+          <div class="row"><button class="btn gold" data-act="pay-add">Approved on the terminal</button><button class="btn ghost" data-act="pay-declined">Declined</button></div>
+          ${card && card.state.ready && d.manual ? `<span class="small muted"><button class="btn small ghost" data-act="reader-auto">Send it to the card reader instead</button></span>` : ""}</div>`;
       else if (d.method === "Cash") {
         const quick = [...new Set([st.due, Math.ceil(st.due / 500) * 500, Math.ceil(st.due / 1000) * 1000, Math.ceil(st.due / 2000) * 2000, Math.ceil(st.due / 5000) * 5000, Math.ceil(st.due / 10000) * 10000])].filter((v) => v >= st.due).slice(0, 5);
         entry = `<div class="terminal"><span class="label">Cash received</span>
@@ -1362,11 +1384,74 @@ window.DEFAULT_PRICE_LIST = {"name":"Dress","updated":"Aug 13, 2026, 5:29 PM","c
           <div class="row"><button class="btn gold" data-act="pay-add" ${amt > 0 ? "" : "disabled"}>Record payment</button></div></div>`;
     }
     return `<div class="due"><span>${st.due > 0 ? (d.payments.length ? "Still to pay" : "Amount due") : "Paid in full"}</span><span class="money">${m(st.due)}</span></div>
-      ${d.payments.length || credit ? `<div class="pays">${credit ? `<div class="pay"><span>Exchange credit · #${UI.credit.saleNo}</span><span>${m(credit)}</span></div>` : ""}${d.payments.map((p, i) => `<div class="pay"><span>${esc(p.method)}${p.ref ? ` (${esc(p.ref)})` : ""} <button class="btn small ghost" data-act="pay-remove" data-i="${i}">Undo</button></span><span>${m(p.amount)}</span></div>`).join("")}
+      ${d.payments.length || credit ? `<div class="pays">${credit ? `<div class="pay"><span>Exchange credit · #${UI.credit.saleNo}</span><span>${m(credit)}</span></div>` : ""}${d.payments.map((p, i) => `<div class="pay"><span>${esc(p.method)}${p.ref ? ` (${esc(p.ref)})` : ""} ${p.reader ? `<button class="btn small ghost" data-act="pay-void-reader" data-i="${i}" ${d.reader ? "disabled" : ""}>Void card charge</button>` : `<button class="btn small ghost" data-act="pay-remove" data-i="${i}" ${d.reader ? "disabled" : ""}>Undo</button>`}</span><span>${m(p.amount)}</span></div>`).join("")}
         ${d.change ? `<div class="pay"><b>Change due</b><b>${m(d.change)}</b></div>` : ""}</div>` : ""}
-      ${st.due > 0 ? `<div class="choice">${["Card", "Cash", "Check", "Other"].map(lineBtn).join("")}</div>${entry}` : ""}
-      <div class="foot"><button class="btn" data-act="close">Back to sale</button><button class="btn primary" data-act="pay-finish" ${st.due > 0 ? "disabled" : ""}>Finish sale</button></div>`;
+      ${readerNoteHtml(d)}
+      ${st.due > 0 ? `<div class="choice">${["Card", "Cash", "Check", "Other"].map((x) => lineBtn(x).replace("<button ", `<button ${d.reader ? "disabled " : ""}`)).join("")}</div>${entry}` : ""}
+      <div class="foot"><button class="btn" data-act="close" ${d.reader ? "disabled" : ""}>Back to sale</button><button class="btn primary" data-act="pay-finish" ${st.due > 0 || d.reader ? "disabled" : ""}>Finish sale</button></div>`;
   }
+
+  // ---------- the card reader ----------
+  const payTotal = () => cartTotals().total - (UI.credit ? UI.credit.amount : 0);
+  const readerOn = (d) => !!(card && card.state.ready && S.settings.syncKey && !d.manual);
+  const readerNoteHtml = (d) => d.readerNote ? `<div class="readernote ${d.readerNote.bad ? "bad" : "good"}" role="status">${esc(d.readerNote.text)}</div>` : "";
+  function readerWaitHtml(d) {
+    const r = d.reader;
+    return `<div class="terminal readerwait" id="readerwait"><span class="label">On the card reader${card.state.test ? ` <span class="pill plain">Test mode</span>` : ""}</span>
+      <span class="money" style="font-size:38px">${m(r.amount)}</span>
+      <span style="font-size:17px">${r.sending ? "Sending to the reader…" : r.canceling ? "Canceling…" : "Have the customer tap, insert or swipe their card on the reader."}</span>
+      <span class="readerdots" aria-hidden="true"><i></i><i></i><i></i></span>
+      ${r.warn ? `<span class="small" style="color:var(--red)">${esc(r.warn)} Still trying…</span>` : ""}
+      ${r.stale ? `<div class="readernote bad">Still no answer after ${Math.round((Date.now() - r.at) / 60000)} minutes. Look at the reader screen. If it says approved, click Check again. If nothing is happening, click Stop waiting.</div>
+        <div class="row"><button class="btn" data-act="reader-check">Check again</button><button class="btn ghost" data-act="reader-stop">Stop waiting</button></div>`
+        : `<div class="row"><button class="btn" data-act="reader-cancel" ${r.sending || r.canceling ? "disabled" : ""}>Cancel</button></div>`}
+    </div>`;
+  }
+  const pendingSave = (r) => { try { localStorage.setItem(CARD_PENDING, JSON.stringify({ id: r.id, amount: r.amount, at: r.at })); } catch {} };
+  const pendingClear = () => { try { localStorage.removeItem(CARD_PENDING); } catch {} };
+  let readerWatch = null, readerStaleTimer = null;
+  function readerStopWatching() { if (readerWatch) readerWatch.stop(); readerWatch = null; clearTimeout(readerStaleTimer); }
+  function readerWatchStart(d) {
+    readerStopWatching();
+    const id = d.reader.id;
+    readerWatch = card.watch(id, (p) => readerUpdate(id, p));
+    readerStaleTimer = setTimeout(() => { const x = UI.dialog; if (x && x.reader && x.reader.id === id) { x.reader.stale = true; renderDialog(); } }, 3 * 60 * 1000);
+  }
+  function readerUpdate(id, p) {
+    const d = UI.dialog;
+    if (!d || d.type !== "pay" || !d.reader || d.reader.id !== id) return;
+    if (p.error) { if (d.reader.warn !== p.error) { d.reader.warn = p.error; renderDialog(); } return; }
+    if (d.reader.warn) { d.reader.warn = ""; renderDialog(); }
+    if (p.status === "pending") return;
+    readerStopWatching(); pendingClear();
+    const r = d.reader; d.reader = null;
+    if (p.status === "succeeded") {
+      const st = L.paymentState(payTotal(), d.payments);
+      const amount = Math.min(Number.isFinite(p.amount) && p.amount > 0 ? p.amount : r.amount, st.due);
+      const desc = window.CardPay.describe(p);
+      d.payments.push({ method: "Card", amount, ...(desc ? { ref: desc.slice(0, 40) } : {}), reader: { id: p.id, last4: p.last4 || "", auth: p.auth || "", brand: p.brand || "", ...(card.state.test ? { test: true } : {}) } });
+      d.readerNote = { text: `Approved ${m(amount)}${desc ? " · " + desc : ""}.` };
+      d.amount = (L.paymentState(payTotal(), d.payments).due / 100).toFixed(2);
+    } else if (p.status === "failed") d.readerNote = { bad: true, text: `Declined${p.message && !/declin/i.test(p.message) ? " (" + p.message + ")" : ""}. Try the card again or choose another way to pay.` };
+    else if (p.status === "canceled") d.readerNote = { bad: true, text: p.canceledBy === "terminal" ? "Canceled on the reader. Nothing was charged." : "Canceled. Nothing was charged." };
+    else d.readerNote = { bad: true, text: `The reader says "${p.status}". Check the reader before trying again.` };
+    renderDialog();
+  }
+  async function checkCardLeftover() {
+    let left = null; try { left = JSON.parse(localStorage.getItem(CARD_PENDING) || "null"); } catch {}
+    if (!left || !card || !card.state.ready) return;
+    let p; try { p = await card.get(left.id); } catch { return; }
+    if (p.status === "pending") { try { p = await card.cancel(left.id); } catch {} }
+    pendingClear();
+    if (p.status !== "succeeded") return;
+    UI.dialog = { type: "confirm", title: `${m(p.amount || left.amount)} was approved on the card reader`,
+      text: `The register closed before that sale was finished, so it isn't on a receipt here (${esc(window.CardPay.describe(p) || "card")}). Void the charge to give the money back to the card, or keep it if you've already rung the sale up another way.`,
+      yes: "Void the charge", run: async () => { try { await card.void(p.id); toast("The card charge was voided."); } catch (e) { toast(e.message + " Void it on the reader instead.", true); } } };
+    renderDialog();
+  }
+  // Card refunds for a sale paid on the reader: what can still go back to each card.
+  const refundByReader = (sale, d) => !!(card && card.state.ready && !d.manual && readerRefundable(sale).reduce((a, x) => a + x.left, 0) > 0);
+  const readerRefundable = (sale) => (sale ? sale.payments.filter((p) => p.reader && !p.reader.voided).map((p) => ({ p, left: p.amount - (p.reader.refunded || 0) })).filter((x) => x.left > 0) : []);
 
   // ---------- Returns ----------
   function returnsView() {
@@ -2133,6 +2218,8 @@ window.DEFAULT_PRICE_LIST = {"name":"Dress","updated":"Aug 13, 2026, 5:29 PM","c
     nav: (el) => { UI.view = el.dataset.v; render(); document.getElementById("main").scrollTop = 0; },
     scrim: (el, ev) => { if (ev.target === el && UI.dialog && UI.dialog.type !== "pay") A.close(); },
     close: () => {
+      if (UI.dialog && UI.dialog.reader) return toast("The card reader is waiting. Click Cancel first.", true);
+      if (UI.dialog && (UI.dialog.back || UI.dialog.refunding)) { if (UI.dialog.refunding) return; UI.dialog = UI.dialog.back; return renderDialog(); }
       const d = UI.dialog; UI.dialog = null;
       if (d && d.type === "receipt" && d.fresh) render(); else renderDialog();
     },
@@ -2287,9 +2374,70 @@ window.DEFAULT_PRICE_LIST = {"name":"Dress","updated":"Aug 13, 2026, 5:29 PM","c
       const total = cartTotals().total - (UI.credit ? UI.credit.amount : 0);
       UI.dialog = { type: "pay", payments: [], method: total < 0 ? "Card" : "Card", amount: (Math.max(0, total) / 100).toFixed(2), ref: "", change: 0 };
       renderDialog();
+      if (card && S.settings.syncKey) { const was = card.state.ready; card.check().then((st) => { const d = UI.dialog; if (d && d.type === "pay" && !d.reader && st.ready !== was) renderDialog(); }); }
+    },
+    "reader-send": async () => {
+      const d = UI.dialog; if (!d || d.reader) return;
+      const st = L.paymentState(payTotal(), d.payments); const amt = L.toCents(d.amount);
+      if (amt <= 0) return toast("Enter an amount.", true);
+      if (amt > st.due) return toast(`That's more than the ${m(st.due)} still owed.`, true);
+      d.readerNote = null;
+      d.reader = { id: "", amount: amt, at: Date.now(), sending: true, ref: "pos-" + uid() };
+      renderDialog();
+      try {
+        const p = await card.start(amt, d.reader.ref, `Receipt #${S.settings.nextReceipt}`);
+        if (UI.dialog !== d || !d.reader) return;
+        Object.assign(d.reader, { id: p.id, sending: false }); pendingSave(d.reader); renderDialog();
+        if (p.status !== "pending") return readerUpdate(p.id, p);
+        readerWatchStart(d);
+      } catch (e) {
+        d.reader = null;
+        if (e.status === 503 || e.status === 404) d.manual = true;
+        d.readerNote = { bad: true, text: e.message };
+        renderDialog();
+      }
+    },
+    "reader-cancel": async () => {
+      const d = UI.dialog; if (!d || !d.reader || !d.reader.id) return;
+      d.reader.canceling = true; renderDialog();
+      try { const p = await card.cancel(d.reader.id); readerUpdate(d.reader.id, p); }
+      catch (e) {
+        try { const p = await card.get(d.reader.id); if (p.status !== "pending") return readerUpdate(d.reader.id, p); } catch {}
+        if (d.reader) { d.reader.canceling = false; renderDialog(); toast(e.message, true); }
+      }
+    },
+    "reader-check": async () => {
+      const d = UI.dialog; if (!d || !d.reader) return;
+      try { const p = await card.get(d.reader.id); if (p.status === "pending") toast("Still waiting on the reader."); else readerUpdate(d.reader.id, p); } catch (e) { toast(e.message, true); }
+    },
+    "reader-stop": async () => {
+      const d = UI.dialog; if (!d || !d.reader) return;
+      const id = d.reader.id;
+      try { const p = await card.cancel(id); return readerUpdate(id, p); } catch {}
+      try { const p = await card.get(id); if (p.status !== "pending") return readerUpdate(id, p); } catch {}
+      readerStopWatching(); pendingClear(); d.reader = null;
+      d.readerNote = { bad: true, text: "Stopped waiting. If the reader later shows it was approved, void that charge on the reader or take the payment again." };
+      renderDialog();
+    },
+    "reader-manual": () => { const d = UI.dialog; d.manual = true; d.readerNote = null; renderDialog(); },
+    "reader-auto": () => { const d = UI.dialog; d.manual = false; d.readerNote = null; renderDialog(); },
+    "pay-void-reader": (el) => {
+      const d = UI.dialog; const p = d.payments[Number(el.dataset.i)]; if (!p || !p.reader) return;
+      UI.dialog = { type: "confirm", title: `Void the ${m(p.amount)} card charge?`, text: "The money goes back to the customer's card and the payment comes off this sale.", yes: "Void the charge", back: d,
+        run: async () => {
+          UI.dialog = d;
+          try {
+            await card.void(p.reader.id);
+            d.payments.splice(d.payments.indexOf(p), 1);
+            d.readerNote = { text: `Voided the ${m(p.amount)} card charge.` };
+            d.amount = (L.paymentState(payTotal(), d.payments).due / 100).toFixed(2);
+          } catch (e) { d.readerNote = { bad: true, text: e.message }; }
+          renderDialog();
+        } };
+      renderDialog();
     },
     "pay-method": (el) => {
-      const d = UI.dialog; d.method = el.dataset.m;
+      const d = UI.dialog; if (d.reader) return; d.method = el.dataset.m; d.readerNote = null;
       const total = cartTotals().total - (UI.credit ? UI.credit.amount : 0);
       const st = L.paymentState(total, d.payments);
       d.amount = d.method === "Cash" ? "" : (st.due / 100).toFixed(2); d.ref = "";
@@ -2299,6 +2447,8 @@ window.DEFAULT_PRICE_LIST = {"name":"Dress","updated":"Aug 13, 2026, 5:29 PM","c
     "pay-declined": () => { toast("Declined. Try the card again or choose another way to pay."); },
     "pay-add": () => {
       const d = UI.dialog;
+      if (d.reader) return;
+      if (d.method === "Card" && readerOn(d) && payTotal() > 0) return A["reader-send"]();
       const total = cartTotals().total - (UI.credit ? UI.credit.amount : 0);
       const st = L.paymentState(total, d.payments);
       const amt = L.toCents(d.amount);
@@ -2326,13 +2476,24 @@ window.DEFAULT_PRICE_LIST = {"name":"Dress","updated":"Aug 13, 2026, 5:29 PM","c
     "rc-return": () => { const rec = currentRec(); UI.dialog = null; UI.view = "returns"; UI.retSale = rec.id; UI.retPick = {}; UI.retRestock = {}; render(); },
     "rc-void": () => {
       const rec = currentRec();
-      const card = rec.payments.filter((p) => p.method === "Card").reduce((a, p) => a + p.amount, 0);
-      UI.dialog = { type: "confirm", title: `Void receipt #${rec.no}?`, text: `Every item goes back into stock and the sale stops counting toward today's totals.${card ? ` <b>Also void or refund the ${m(card)} card charge on the terminal.</b>` : ""}`, yes: "Void sale",
+      const cardSum = rec.payments.filter((p) => p.method === "Card" && !p.reader).reduce((a, p) => a + p.amount, 0);
+      const viaReader = readerRefundable(rec);
+      const readerSum = viaReader.reduce((a, x) => a + x.left, 0);
+      UI.dialog = { type: "confirm", title: `Void receipt #${rec.no}?`, text: `Every item goes back into stock and the sale stops counting toward today's totals.${readerSum ? ` The ${m(readerSum)} paid on the card reader goes back to the customer's card.` : ""}${cardSum ? ` <b>Also void or refund the ${m(cardSum)} card charge on the terminal.</b>` : ""}`, yes: "Void sale",
         run: async () => {
+          // Give the card money back first, so a sale is only voided here once the card side is done.
+          for (const { p, left } of viaReader) {
+            if (!card) return toast("The card reader isn't connected on this computer. Void the card charge on the reader first.", true);
+            try { if (p.reader.refunded) throw new Error("part refunded"); await card.void(p.reader.id); p.reader.voided = true; }
+            catch {
+              try { await card.refund(p.reader.id, left, "void-" + rec.id); p.reader.refunded = (p.reader.refunded || 0) + left; }
+              catch (e2) { await persist(); return toast(`The ${m(left)} card charge couldn't be given back: ${e2.message} The sale wasn't voided.`, true); }
+            }
+          }
           for (const l of rec.lines) if (l.itemId) { const it = itemById(l.itemId); if (it) { const k = L.stockKey(l.size, l.colorId); it.stock[k] = (Number(it.stock[k]) || 0) + l.qty; logStock(it.id, k, l.qty, `Void #${rec.no}`); } }
           rec.voided = true; rec.voidedAt = new Date().toISOString();
           if (sync && rec.customer) sync.void(custOf(rec.customer), rec.no);
-          await persist(); render(); toast(`Receipt #${rec.no} voided.`);
+          await persist(); render(); toast(`Receipt #${rec.no} voided.${readerSum ? ` ${m(readerSum)} went back to the card.` : ""}`);
         } };
       renderDialog();
     },
@@ -2352,10 +2513,27 @@ window.DEFAULT_PRICE_LIST = {"name":"Dress","updated":"Aug 13, 2026, 5:29 PM","c
       UI.dialog = { type: "refund", amount, method: main && ["Card", "Cash", "Check"].includes(main.method) ? main.method : "Cash", note: "" };
       renderDialog();
     },
-    "rf-method": (el) => { UI.dialog.method = el.dataset.m; renderDialog(); },
+    "rf-method": (el) => { if (UI.dialog.refunding) return; UI.dialog.method = el.dataset.m; UI.dialog.rfNote = ""; renderDialog(); },
+    "rf-manual": () => { UI.dialog.manual = true; UI.dialog.rfNote = ""; renderDialog(); },
     "rf-done": async () => {
       const d = UI.dialog; const { sale, lines } = pickedReturn();
-      const rec = recordReturn(sale, lines, { type: "refund", method: d.method, note: String(d.note || "").trim() });
+      if (d.refunding) return;
+      // Paid on the card reader: send the money back to that card first, then record the return.
+      let cardRef = "";
+      if (d.method === "Card" && refundByReader(sale, d)) {
+        d.refunding = true; d.rfNote = ""; renderDialog();
+        let need = d.amount; const done = [];
+        for (const { p, left } of readerRefundable(sale)) {
+          if (need <= 0) break;
+          const amt = Math.min(need, left);
+          try { await card.refund(p.reader.id, amt, "ret-" + uid()); p.reader.refunded = (p.reader.refunded || 0) + amt; need -= amt; done.push(window.CardPay.describe(p.reader)); }
+          catch (e) { d.refunding = false; d.rfNote = `${e.message}${done.length ? ` ${m(d.amount - need)} already went back to the card.` : ""} Nothing was recorded yet.`; await persist(); return renderDialog(); }
+        }
+        d.refunding = false;
+        if (need > 0) { d.rfNote = `Only ${m(d.amount - need)} could go back to the card. Run the other ${m(need)} on the terminal, then record it.`; d.manual = true; await persist(); return renderDialog(); }
+        cardRef = done.filter(Boolean).join(", ");
+      }
+      const rec = recordReturn(sale, lines, { type: "refund", method: d.method, note: [String(d.note || "").trim(), cardRef ? "Back to " + cardRef : ""].filter(Boolean).join(" · ") });
       UI.retPick = {}; UI.retRestock = {};
       await persist();
       UI.dialog = { type: "receipt", kind: "return", id: rec.id, fresh: true };
@@ -2475,6 +2653,7 @@ window.DEFAULT_PRICE_LIST = {"name":"Dress","updated":"Aug 13, 2026, 5:29 PM","c
 
   async function finishSale() {
     const d = UI.dialog;
+    if (d.reader) return;
     const t = cartTotals();
     const credit = UI.credit ? UI.credit.amount : 0;
     const total = t.total - credit;

@@ -21,6 +21,7 @@ backups, updates).
 `shared/` holds code both apps use. The build copies it into each app (those copies are gitignored):
 - `customer-sync.js`: customers and customer spending, via the website's `/api/customer-sync`
 - `tag-sync.js`: alteration tags, via `/api/tag-sync`
+- `card-pay.js`: the card reader (PAX A920 Pro on Merchant360, Electronic Payments), via `/api/card-pay`
 
 ## Publishing a new version
 
@@ -60,6 +61,22 @@ the **Customer list** status button at the top of the screen (both apps work the
 - If the website doesn't have an endpoint yet (404), the apps treat it as "not set up" and keep data.
 - Changing what a register sends must stay compatible with the website's endpoints (deploy the
   website change first, or together).
+
+## Card reader
+
+- The reader is a PAX A920 Pro on Merchant360. The Merchant360 key lives only on the website (Netlify
+  `M360_SECRET_KEY`); the registers ask `/api/card-pay` with their own register key. Never put a
+  Merchant360 key in this repo or the apps.
+- In the payment screen, Card shows **Send $x to the card reader** when the website says the reader is
+  set up (`GET /api/card-pay` → ready). Otherwise (not set up, offline, older website) it shows the old
+  "key it into the terminal" steps, and staff can always switch to them.
+- A reader payment is kept on the sale as `payments[].reader` `{ id, last4, auth, brand, test? }`.
+  Voiding the receipt voids that charge (or refunds it once the day has closed); the POS Returns tab
+  refunds it to the card. "Undo" on a reader payment is "Void card charge".
+- A sale still waiting when the app closes is kept in localStorage `bespoke-card-pending`; on the next
+  start the app checks it and offers to void a charge that went through.
+- Merchant360's live card-present processing is waiting on their certification; until then a live key
+  answers 503 and the apps explain it and fall back to keying it in.
 
 ## Testing
 

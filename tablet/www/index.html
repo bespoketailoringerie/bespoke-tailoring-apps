@@ -176,6 +176,13 @@ label.f > span, .label { font-family: var(--f-mono); font-weight: 700; font-size
 .pays { display: grid; gap: 6px; }
 .pay { display: flex; justify-content: space-between; align-items: center; font-family: var(--f-mono); }
 .terminal { border: 2px solid var(--gold); padding: 14px 16px; display: grid; gap: 12px; background: var(--gold-soft); }
+.readerwait { border-color: var(--red); background: var(--card); justify-items: center; text-align: center; padding: 22px 16px; }
+.readerdots { display: flex; gap: 8px; }
+.readerdots i { width: 10px; height: 10px; background: var(--red); animation: rdot 1.2s infinite ease-in-out; }
+.readerdots i:nth-child(2) { animation-delay: .2s; } .readerdots i:nth-child(3) { animation-delay: .4s; }
+@keyframes rdot { 0%, 80%, 100% { opacity: .2; } 40% { opacity: 1; } }
+.readernote { padding: 10px 12px; font-size: 16px; border-left: 4px solid var(--good); background: var(--good-soft); color: var(--ink); text-align: left; }
+.readernote.bad { border-left-color: var(--red); background: var(--gold-soft); }
 .terminal .money { font-size: 26px; font-weight: 700; color: var(--red); }
 .amtbox { font-family: var(--f-mono); font-weight: 700; font-size: 34px; color: var(--red); background: var(--bg); border: 2px solid var(--red); padding: 6px 14px; text-align: right; min-height: 60px; font-variant-numeric: tabular-nums; }
 .keypad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
@@ -400,6 +407,7 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; user-select:
 <script src="capacitor.js"></script>
 <script src="customer-sync.js"></script>
 <script src="tag-sync.js"></script>
+<script src="card-pay.js"></script>
 <script src="version.js"></script>
 <script>
 (() => {
@@ -622,8 +630,11 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; user-select:
   // website (Calendly bookings, the staff page, the shop computer) come back. Works offline and
   // catches up when the connection returns.
   let sync = null;
+  let card = null;   // the card reader, through the website (shared/card-pay.js)
+  const CARD_PENDING = "bespoke-card-pending";   // a reader sale that was still waiting, in case the app closes
   function startSync() {
     if (!window.CustomerSync || !IN_APP) return;
+    if (window.CardPay) { card = window.CardPay.createCardPay({ base: link.base, key: link.key }); if (link.key) card.check().then(checkCardLeftover); }
     sync = window.CustomerSync.createSync({
       base: link.base, key: link.key,
       adapter: {
@@ -1297,10 +1308,16 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; user-select:
     const amt = toCents(d.amount);
     let entry = "";
     if (st.due > 0) {
-      if (d.method === "Card") entry = `<div class="terminal"><span class="label">On the card terminal</span><span>Key in this amount and have the customer tap or insert their card.</span>
+      if (d.method === "Card" && d.reader) entry = readerWaitHtml(d);
+      else if (d.method === "Card" && readerOn(d)) entry = `<div class="terminal"><span class="label">Card reader${card.state.test ? ` <span class="pill plain">Test mode · no money moves</span>` : ""}</span>
+          <div class="row"><input type="text" id="pay-amt" inputmode="decimal" style="max-width:170px;font-size:22px" class="money" value="${esc(d.amount)}" data-in="dlg" data-k="amount"><span class="small muted">Change it to split the payment.</span></div>
+          <div class="row"><button class="btn primary" data-act="reader-send" id="reader-send" style="min-height:60px;font-size:15px">Send ${m(Math.min(amt, st.due) || st.due)} to the card reader</button></div>
+          <span class="small muted">Reader not working? <button class="btn small ghost" data-act="reader-manual">Key it in on the reader instead</button></span></div>`;
+      else if (d.method === "Card") entry = `<div class="terminal"><span class="label">On the card terminal</span><span>Key in this amount and have the customer tap or insert their card.</span>
           <div class="row"><input type="text" id="pay-amt" inputmode="decimal" style="max-width:170px;font-size:22px" class="money" value="${esc(d.amount)}" data-in="dlg" data-k="amount"><span class="small muted">Change it to split the payment.</span></div>
           <label class="f"><span>Approval code (optional)</span><input type="text" id="pay-ref" style="max-width:240px" value="${esc(d.ref)}" data-in="dlg" data-k="ref" autocomplete="off"></label>
-          <div class="row"><button class="btn gold" data-act="pay-add">Approved on the terminal</button><button class="btn ghost" data-act="pay-declined">Declined</button></div></div>`;
+          <div class="row"><button class="btn gold" data-act="pay-add">Approved on the terminal</button><button class="btn ghost" data-act="pay-declined">Declined</button></div>
+          ${card && card.state.ready && d.manual ? `<span class="small muted"><button class="btn small ghost" data-act="reader-auto">Send it to the card reader instead</button></span>` : ""}</div>`;
       else if (d.method === "Cash") {
         const quick = [...new Set([st.due, Math.ceil(st.due / 500) * 500, Math.ceil(st.due / 1000) * 1000, Math.ceil(st.due / 2000) * 2000, Math.ceil(st.due / 5000) * 5000, Math.ceil(st.due / 10000) * 10000])].filter((v) => v >= st.due).slice(0, 5);
         entry = `<div class="terminal"><span class="label">Cash received</span>
@@ -1314,10 +1331,70 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; user-select:
           <div class="row"><button class="btn gold" data-act="pay-add" id="pay-go" ${amt > 0 ? "" : "disabled"}>Record payment</button></div></div>`;
     }
     return `<div class="due"><span>${st.due > 0 ? (d.payments.length ? "Still to pay" : "Amount due") : "Paid in full"}</span><span class="money">${m(st.due)}</span></div>
-      ${d.payments.length ? `<div class="pays">${d.payments.map((p, i) => `<div class="pay"><span>${esc(p.method)}${p.ref ? ` (${esc(p.ref)})` : ""} <button class="btn small ghost" data-act="pay-remove" data-i="${i}">Undo</button></span><span>${m(p.amount)}</span></div>`).join("")}
+      ${d.payments.length ? `<div class="pays">${d.payments.map((p, i) => `<div class="pay"><span>${esc(p.method)}${p.ref ? ` (${esc(p.ref)})` : ""} ${p.reader ? `<button class="btn small ghost" data-act="pay-void-reader" data-i="${i}" ${d.reader ? "disabled" : ""}>Void card charge</button>` : `<button class="btn small ghost" data-act="pay-remove" data-i="${i}" ${d.reader ? "disabled" : ""}>Undo</button>`}</span><span>${m(p.amount)}</span></div>`).join("")}
         ${d.change ? `<div class="pay"><b>Change due</b><b>${m(d.change)}</b></div>` : ""}</div>` : ""}
-      ${st.due > 0 ? `<div class="choice">${["Card", "Cash", "Check", "Other"].map((x) => `<button data-act="pay-method" data-m="${x}" aria-pressed="${d.method === x}">${x}</button>`).join("")}</div>${entry}` : ""}
-      <div class="foot"><button class="btn" data-act="close">Back to sale</button><button class="btn primary" data-act="pay-finish" ${st.due > 0 ? "disabled" : ""}>Finish sale</button></div>`;
+      ${readerNoteHtml(d)}
+      ${st.due > 0 ? `<div class="choice">${["Card", "Cash", "Check", "Other"].map((x) => `<button data-act="pay-method" data-m="${x}" aria-pressed="${d.method === x}" ${d.reader ? "disabled" : ""}>${x}</button>`).join("")}</div>${entry}` : ""}
+      <div class="foot"><button class="btn" data-act="close" ${d.reader ? "disabled" : ""}>Back to sale</button><button class="btn primary" data-act="pay-finish" ${st.due > 0 || d.reader ? "disabled" : ""}>Finish sale</button></div>`;
+  }
+
+  // ---------- the card reader ----------
+  const readerOn = (d) => !!(card && card.state.ready && link.key && !d.manual);
+  const readerNoteHtml = (d) => d.readerNote ? `<div class="readernote ${d.readerNote.bad ? "bad" : "good"}" role="status">${esc(d.readerNote.text)}</div>` : "";
+  function readerWaitHtml(d) {
+    const r = d.reader;
+    return `<div class="terminal readerwait" id="readerwait"><span class="label">On the card reader${card.state.test ? ` <span class="pill plain">Test mode</span>` : ""}</span>
+      <span class="money" style="font-size:40px">${m(r.amount)}</span>
+      <span style="font-size:18px">${r.sending ? "Sending to the reader…" : r.canceling ? "Canceling…" : "Have the customer tap, insert or swipe their card on the reader."}</span>
+      <span class="readerdots" aria-hidden="true"><i></i><i></i><i></i></span>
+      ${r.warn ? `<span class="small" style="color:var(--red)">${esc(r.warn)} Still trying…</span>` : ""}
+      ${r.stale ? `<div class="readernote bad">Still no answer after ${Math.round((Date.now() - r.at) / 60000)} minutes. Look at the reader screen. If it says approved, tap Check again. If nothing is happening, tap Stop waiting.</div>
+        <div class="row"><button class="btn" data-act="reader-check">Check again</button><button class="btn ghost" data-act="reader-stop">Stop waiting</button></div>`
+        : `<div class="row"><button class="btn" data-act="reader-cancel" ${r.sending || r.canceling ? "disabled" : ""}>Cancel</button></div>`}
+    </div>`;
+  }
+  const pendingSave = (r) => { try { localStorage.setItem(CARD_PENDING, JSON.stringify({ id: r.id, amount: r.amount, at: r.at })); } catch {} };
+  const pendingClear = () => { try { localStorage.removeItem(CARD_PENDING); } catch {} };
+  let readerWatch = null, readerStaleTimer = null;
+  function readerStopWatching() { if (readerWatch) readerWatch.stop(); readerWatch = null; clearTimeout(readerStaleTimer); }
+  function readerWatchStart(d) {
+    readerStopWatching();
+    const id = d.reader.id;
+    readerWatch = card.watch(id, (p) => readerUpdate(id, p));
+    readerStaleTimer = setTimeout(() => { const x = UI.dialog; if (x && x.reader && x.reader.id === id) { x.reader.stale = true; renderDialog(); } }, 3 * 60 * 1000);
+  }
+  function readerUpdate(id, p) {
+    const d = UI.dialog;
+    if (!d || d.type !== "pay" || !d.reader || d.reader.id !== id) return;
+    if (p.error) { if (d.reader.warn !== p.error) { d.reader.warn = p.error; renderDialog(); } return; }
+    if (d.reader.warn) { d.reader.warn = ""; renderDialog(); }
+    if (p.status === "pending") return;
+    readerStopWatching(); pendingClear();
+    const r = d.reader; d.reader = null;
+    if (p.status === "succeeded") {
+      const st = paymentState(cartTotals().total, d.payments);
+      const amount = Math.min(Number.isFinite(p.amount) && p.amount > 0 ? p.amount : r.amount, st.due);
+      const desc = window.CardPay.describe(p);
+      d.payments.push({ method: "Card", amount, ...(desc ? { ref: desc.slice(0, 40) } : {}), reader: { id: p.id, last4: p.last4 || "", auth: p.auth || "", brand: p.brand || "", ...(card.state.test ? { test: true } : {}) } });
+      d.readerNote = { text: `Approved ${m(amount)}${desc ? " · " + desc : ""}.` };
+      d.amount = (paymentState(cartTotals().total, d.payments).due / 100).toFixed(2);
+    } else if (p.status === "failed") d.readerNote = { bad: true, text: `Declined${p.message && !/declin/i.test(p.message) ? " (" + p.message + ")" : ""}. Try the card again or choose another way to pay.` };
+    else if (p.status === "canceled") d.readerNote = { bad: true, text: p.canceledBy === "terminal" ? "Canceled on the reader. Nothing was charged." : "Canceled. Nothing was charged." };
+    else d.readerNote = { bad: true, text: `The reader says "${p.status}". Check the reader before trying again.` };
+    renderDialog();
+  }
+  // A sale that was waiting on the reader when the app closed: find out how it ended.
+  async function checkCardLeftover() {
+    let left = null; try { left = JSON.parse(localStorage.getItem(CARD_PENDING) || "null"); } catch {}
+    if (!left || !card || !card.state.ready) return;
+    let p; try { p = await card.get(left.id); } catch { return; }
+    if (p.status === "pending") { try { p = await card.cancel(left.id); } catch {} }
+    pendingClear();
+    if (p.status !== "succeeded") return;
+    UI.dialog = { type: "confirm", title: `${m(p.amount || left.amount)} was approved on the card reader`,
+      text: `The app closed before that sale was finished, so it isn't on a receipt here (${esc(window.CardPay.describe(p) || "card")}). Void the charge to give the money back to the card, or keep it if you've already rung the sale up another way.`,
+      yes: "Void the charge", run: async () => { try { await card.void(p.id); toast("The card charge was voided."); } catch (e) { toast(e.message + " Void it on the reader instead.", true); } } };
+    renderDialog();
   }
 
   // ---------- actions ----------
@@ -1329,7 +1406,11 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; user-select:
   const A = {
     nav: (el) => { UI.view = el.dataset.v; render(); },
     scrim: (el, ev) => { if (ev.target === el && UI.dialog && !["pay", "tag", "cust", "price"].includes(UI.dialog.type)) A.close(); },
-    close: () => { const fresh = UI.dialog && UI.dialog.fresh; UI.dialog = null; renderDialog(); if (fresh) render(); },
+    close: () => {
+      if (UI.dialog && UI.dialog.reader) return toast("The card reader is waiting. Tap Cancel first.", true);
+      if (UI.dialog && UI.dialog.back) { UI.dialog = UI.dialog.back; return renderDialog(); }
+      const fresh = UI.dialog && UI.dialog.fresh; UI.dialog = null; renderDialog(); if (fresh) render();
+    },
     service: (el) => { const s = settings.services[Number(el.dataset.i)]; if (s) addLine({ name: s.name, price: s.price, fixed: !!s.fixed }); },
     custom: () => { UI.dialog = { type: "custom", name: "", digits: "" }; renderDialog(); },
     key: (el) => {
@@ -1374,9 +1455,78 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; user-select:
     "disc-clear": () => { const d = UI.dialog; if (d.target === "cart") UI.cartDisc = null; else UI.cart[d.target].disc = null; UI.dialog = null; renderDialog(); refreshTape(); },
     "cart-clear": () => { UI.dialog = { type: "confirm", title: "Clear this sale?", text: "Everything on the current sale will be removed. Nothing has been charged.", yes: "Clear sale", run: () => { UI.cart = []; UI.cartDisc = null; releaseTags(); refreshTape(); } }; renderDialog(); },
     "confirm-yes": async () => { const run = UI.dialog.run; UI.dialog = null; renderDialog(); await run(); },
-    charge: () => { const total = cartTotals().total; UI.dialog = { type: "pay", payments: [], method: "Card", amount: (total / 100).toFixed(2), ref: "", change: 0 }; renderDialog(); },
+    charge: () => {
+      const total = cartTotals().total; UI.dialog = { type: "pay", payments: [], method: "Card", amount: (total / 100).toFixed(2), ref: "", change: 0 }; renderDialog();
+      // Is the card reader set up? (The website answers quickly; until then the usual card steps show.)
+      if (card && link.key) { const was = card.state.ready; card.check().then((st) => { const d = UI.dialog; if (d && d.type === "pay" && !d.reader && st.ready !== was) renderDialog(); }); }
+    },
+    "reader-send": async () => {
+      const d = UI.dialog; if (!d || d.reader) return;
+      const st = paymentState(cartTotals().total, d.payments); const amt = toCents(d.amount);
+      if (amt <= 0) return toast("Enter an amount.", true);
+      if (amt > st.due) return toast(`That's more than the ${m(st.due)} still owed.`, true);
+      const tagNos = cartTagNos();
+      d.readerNote = null;
+      d.reader = { id: "", amount: amt, at: Date.now(), sending: true, ref: "tab-" + uid() };
+      renderDialog();
+      try {
+        const p = await card.start(amt, d.reader.ref, tagNos.length ? "Tag " + tagNos.map((n) => "#" + n).join(", ") : "Bespoke Tailoring sale");
+        if (UI.dialog !== d || !d.reader) return;
+        Object.assign(d.reader, { id: p.id, sending: false }); pendingSave(d.reader); renderDialog();
+        if (p.status !== "pending") return readerUpdate(p.id, p);
+        readerWatchStart(d);
+      } catch (e) {
+        d.reader = null;
+        if (e.status === 503 || e.status === 404) d.manual = true;   // not switched on yet: key it in on the reader
+        d.readerNote = { bad: true, text: e.message };
+        renderDialog();
+      }
+    },
+    "reader-cancel": async () => {
+      const d = UI.dialog; if (!d || !d.reader || !d.reader.id) return;
+      d.reader.canceling = true; renderDialog();
+      try { const p = await card.cancel(d.reader.id); readerUpdate(d.reader.id, p); }
+      catch (e) {
+        // Too late to cancel: it finished in the meantime, so take whatever the reader says.
+        try { const p = await card.get(d.reader.id); if (p.status !== "pending") return readerUpdate(d.reader.id, p); } catch {}
+        if (d.reader) { d.reader.canceling = false; renderDialog(); toast(e.message, true); }
+      }
+    },
+    "reader-check": async () => {
+      const d = UI.dialog; if (!d || !d.reader) return;
+      try { const p = await card.get(d.reader.id); if (p.status === "pending") toast("Still waiting on the reader."); else readerUpdate(d.reader.id, p); } catch (e) { toast(e.message, true); }
+    },
+    "reader-stop": async () => {
+      const d = UI.dialog; if (!d || !d.reader) return;
+      const id = d.reader.id;
+      try { const p = await card.cancel(id); return readerUpdate(id, p); } catch {}
+      try { const p = await card.get(id); if (p.status !== "pending") return readerUpdate(id, p); } catch {}
+      // No answer at all: stop here. The website keeps asking, and the sale won't be recorded as paid.
+      readerStopWatching(); pendingClear(); d.reader = null;
+      d.readerNote = { bad: true, text: "Stopped waiting. If the reader later shows it was approved, void that charge on the reader or take the payment again." };
+      renderDialog();
+    },
+    "reader-manual": () => { const d = UI.dialog; d.manual = true; d.readerNote = null; renderDialog(); },
+    "reader-auto": () => { const d = UI.dialog; d.manual = false; d.readerNote = null; renderDialog(); },
+    "pay-void-reader": (el) => {
+      const d = UI.dialog; const i = Number(el.dataset.i); const p = d.payments[i]; if (!p || !p.reader) return;
+      UI.dialog = { type: "confirm", title: `Void the ${m(p.amount)} card charge?`, text: "The money goes back to the customer's card and the payment comes off this sale.", yes: "Void the charge",
+        run: async () => {
+          UI.dialog = d;
+          try {
+            await card.void(p.reader.id);
+            d.payments.splice(d.payments.indexOf(p), 1);
+            d.readerNote = { text: `Voided the ${m(p.amount)} card charge.` };
+            d.amount = (paymentState(cartTotals().total, d.payments).due / 100).toFixed(2);
+          } catch (e) { d.readerNote = { bad: true, text: e.message }; }
+          renderDialog();
+        } };
+      // Going back from the question returns to the payment.
+      UI.dialog.back = d;
+      renderDialog();
+    },
     "pay-method": (el) => {
-      const d = UI.dialog; d.method = el.dataset.m;
+      const d = UI.dialog; if (d.reader) return; d.method = el.dataset.m; d.readerNote = null;
       const st = paymentState(cartTotals().total, d.payments);
       d.amount = d.method === "Cash" ? "" : (st.due / 100).toFixed(2); d.ref = "";
       renderDialog();
@@ -1385,6 +1535,8 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; user-select:
     "pay-declined": () => toast("Declined. Try the card again or choose another way to pay."),
     "pay-add": () => {
       const d = UI.dialog; const total = cartTotals().total;
+      if (d.reader) return;
+      if (d.method === "Card" && readerOn(d)) return A["reader-send"]();
       const st = paymentState(total, d.payments); const amt = toCents(d.amount);
       if (amt <= 0) return toast("Enter an amount.", true);
       if (d.method !== "Cash" && amt > st.due) return toast(`That's more than the ${m(st.due)} still owed.`, true);
@@ -1460,9 +1612,11 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; user-select:
       link = { base, key }; writeLocal();
       if (!sync) return toast("The customer list connects in the installed tablet app.", true);
       sync.configure({ base, key }); if (changedKey) sync.reset();
+      if (card) { card.configure({ base, key }); card.check(); }
       if (tagSync) { tagSync.configure({ base, key }); if (changedKey) tagSync.reset(); }
-      toast("Connecting…"); const st = await sync.syncNow(); if (tagSync && st.state === "ok") tagSync.syncNow();
-      if (st.state === "ok") { UI.dialog = null; renderDialog(); render(); toast(`Connected. ${customers.length} customer${customers.length === 1 ? "" : "s"} on this tablet.`); }
+      toast("Connecting…"); const st = await sync.syncNow(); const connected = st.state === "ok";
+      if (tagSync && connected) tagSync.syncNow();   // this starts a new sync, so read the result first
+      if (connected) { UI.dialog = null; renderDialog(); render(); toast(`Connected. ${customers.length} customer${customers.length === 1 ? "" : "s"} on this tablet.`); }
       else { renderDialog(); toast(st.error || "Couldn't connect.", true); }
     },
     "link-off": () => { UI.dialog = { type: "confirm", title: "Disconnect from the customer list?", text: "Customers stay on this tablet. New customers and sales won't reach the website until you connect again.", yes: "Disconnect", run: () => { link.key = ""; writeLocal(); if (sync) sync.configure({ key: "" }); if (tagSync) tagSync.configure({ key: "" }); linkBadge(); toast("Disconnected."); } }; renderDialog(); },
@@ -1511,9 +1665,23 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; user-select:
     },
     "rc-void": () => {
       const rec = sales.find((x) => x.id === UI.dialog.id);
-      const card = rec.payments.filter((p) => p.method === "Card").reduce((a, p) => a + p.amount, 0);
-      UI.dialog = { type: "confirm", title: `Void receipt ${recNo(rec)}?`, text: `The sale stops counting toward today's totals.${card ? ` <b>Also void or refund the ${m(card)} card charge on the terminal.</b>` : ""}`, yes: "Void sale",
-        run: async () => { rec.voided = true; rec.voidedAt = new Date().toISOString(); refreshShelf(); if (sync && rec.customer) sync.void(custOf(rec.customer), recNo(rec)); await saveSale(rec); toast(`Receipt ${recNo(rec)} voided.`); } };
+      const cardSum = rec.payments.filter((p) => p.method === "Card" && !p.reader).reduce((a, p) => a + p.amount, 0);
+      const viaReader = rec.payments.filter((p) => p.reader && !p.reader.voided);
+      const readerSum = viaReader.reduce((a, p) => a + p.amount, 0);
+      UI.dialog = { type: "confirm", title: `Void receipt ${recNo(rec)}?`, text: `The sale stops counting toward today's totals.${readerSum ? ` The ${m(readerSum)} paid on the card reader goes back to the customer's card.` : ""}${cardSum ? ` <b>Also void or refund the ${m(cardSum)} card charge on the terminal.</b>` : ""}`, yes: "Void sale",
+        run: async () => {
+          // Give the card money back first, so a sale is only voided here once the card side is done.
+          for (const p of viaReader) {
+            if (!card) return toast("The card reader isn't connected on this tablet. Void the card charge on the reader first.", true);
+            try { await card.void(p.reader.id); p.reader.voided = true; }
+            catch (e) {
+              try { await card.refund(p.reader.id, p.amount, "void-" + rec.id); p.reader.voided = true; p.reader.refunded = true; }   // after the day closes, a void becomes a refund
+              catch (e2) { await saveSale(rec); return toast(`The ${m(p.amount)} card charge couldn't be given back: ${e2.message} The sale wasn't voided.`, true); }
+            }
+          }
+          rec.voided = true; rec.voidedAt = new Date().toISOString(); refreshShelf(); if (sync && rec.customer) sync.void(custOf(rec.customer), recNo(rec)); await saveSale(rec);
+          toast(`Receipt ${recNo(rec)} voided.${readerSum ? ` ${m(readerSum)} went back to the card.` : ""}`);
+        } };
       renderDialog();
     },
   };
@@ -1636,13 +1804,13 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; user-select:
 
   async function finishSale() {
     const d = UI.dialog; const t = cartTotals();
-    if (paymentState(t.total, d.payments).due > 0) return;
+    if (d.reader || paymentState(t.total, d.payments).due > 0) return;
     const sale = {
       id: uid(), no: settings.nextReceipt++, date: new Date().toISOString(), device: "tablet",
       lines: UI.cart.map((l, i) => ({ name: l.name, qty: l.qty, price: l.price, disc: l.disc, fixed: !!l.fixed, net: t.perLine[i], ...(l.measure ? { measure: l.measure } : {}), ...(l.tagId ? { tagId: l.tagId } : {}) })),
       customer: UI.cartCustomer || null, tagNos: cartTagNos(),
       cartDisc: UI.cartDisc, subtotal: t.subtotal, discount: t.discount, total: t.total,
-      payments: d.payments.map((p) => ({ method: p.method, amount: p.amount, ...(p.ref ? { ref: p.ref } : {}), ...(p.tendered ? { tendered: p.tendered } : {}) })),
+      payments: d.payments.map((p) => ({ method: p.method, amount: p.amount, ...(p.ref ? { ref: p.ref } : {}), ...(p.tendered ? { tendered: p.tendered } : {}), ...(p.reader ? { reader: p.reader } : {}) })),
       change: d.change || 0, voided: false,
     };
     sales.unshift(sale);
