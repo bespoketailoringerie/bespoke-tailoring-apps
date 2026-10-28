@@ -43,6 +43,9 @@
 
 /* Customer list status at the top of the screen (same as the Alterations app) */
 .linkbtn { margin-left: auto; border: 2px solid var(--bg); background: transparent; color: var(--bg); min-height: 40px; padding: 6px 14px; cursor: pointer; font-family: var(--f-mono); font-weight: 700; font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; display: inline-flex; align-items: center; gap: 8px; white-space: nowrap; }
+/* The status text changes during every sync; keep it on one line and the same width so the header never jumps. */
+.linkbtn { white-space: nowrap; width: 210px; justify-content: center; flex-shrink: 0; }
+.linkbtn span { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .linkbtn:hover { background: rgba(247, 238, 218, 0.12); }
 .linkbtn i { width: 10px; height: 10px; border-radius: 50%; background: var(--rule); display: inline-block; }
 .linkbtn.ok i { background: #7fd39a; } .linkbtn.warn i { background: var(--gold); } .linkbtn.bad i { background: #ff8a8a; }
@@ -866,7 +869,7 @@ window.DEFAULT_PRICE_LIST = {"name":"Dress","updated":"Aug 13, 2026, 5:29 PM","c
   function linkBadge() {
     const b = document.getElementById("link-btn"); if (!b) return;
     const [cls, text] = linkState();
-    b.className = "linkbtn " + cls; b.innerHTML = `<i></i>${esc(text)}`;
+    b.className = "linkbtn " + cls; b.innerHTML = `<i></i><span>${esc(text)}</span>`; b.title = text;
     if (UI.dialog && UI.dialog.type === "link") { const l = document.getElementById("lk-status"); if (l) l.innerHTML = linkLine(); }
   }
   function linkLine() {

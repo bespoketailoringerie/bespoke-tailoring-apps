@@ -297,6 +297,20 @@ label.f > span, .label { font-family: var(--f-mono); font-weight: 700; font-size
 
 .linkbtn { border: 2px solid var(--bg); background: transparent; color: var(--bg); min-height: 44px; padding: 6px 14px; cursor: pointer; font-family: var(--f-mono); font-weight: 700; font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; display: inline-flex; align-items: center; gap: 8px; }
 .linkbtn i { width: 10px; height: 10px; border-radius: 50%; background: var(--rule); display: inline-block; }
+/* Keep the header one steady height: labels never wrap onto a second line; the status text
+   shortens with "…" instead when space runs out (it changes during every sync). */
+@media (min-width: 641px) {
+  .bar { flex-wrap: nowrap; }
+  .brand, .tabs, .fsbtn { flex-shrink: 0; }
+  .tabs button, .linkbtn, .brand span, .bar .clock { white-space: nowrap; }
+  .linkbtn { flex-shrink: 1; min-width: 0; }
+  .linkbtn span { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+  .bar .clock { flex-shrink: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+}
+@media (min-width: 641px) { .bar { min-width: 0; max-width: 100%; } }
+@media (min-width: 641px) and (max-width: 1150px) { .bar { gap: 14px; } .brand span { display: none; } }
+@media (min-width: 641px) and (max-width: 1000px) { .bar .clock { display: none; } }
+@media (min-width: 641px) and (max-width: 780px) { .tabs button { padding: 12px 14px; letter-spacing: 0.1em; } }
 .linkbtn.ok i { background: #7fd39a; } .linkbtn.warn i { background: var(--gold); } .linkbtn.bad i { background: #ff8a8a; }
 .spentrow { display: flex; gap: 8px 18px; flex-wrap: wrap; font-family: var(--f-mono); font-size: 14px; }
 .spentrow b { color: var(--red); }
@@ -726,7 +740,7 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; user-select:
     b.hidden = false;
     const st = sync.status.state, n = sync.pending() + (tagSync ? tagSync.pending() : 0);
     const [cls, text] = !link.key ? ["", "Connect customer list"] : st === "ok" ? ["ok", n ? `${n} to send` : "Customer list"] : st === "syncing" ? ["warn", "Syncing…"] : st === "badkey" ? ["bad", "Check key"] : st === "offline" ? ["warn", n ? `Offline · ${n} waiting` : "Offline"] : ["warn", "Customer list"];
-    b.className = "linkbtn " + cls; b.innerHTML = `<i></i>${esc(text)}`;
+    b.className = "linkbtn " + cls; b.innerHTML = `<i></i><span>${esc(text)}</span>`; b.title = text;
   }
   const custOf = (snap) => snap && customers.find((x) => x.id === snap.id);
 
