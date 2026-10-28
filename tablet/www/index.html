@@ -369,6 +369,15 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; user-select:
 .tagrange .chip { padding: 8px 10px; font-size: 12.5px; letter-spacing: 0.06em; }
 .tagrange .chip .n { margin-left: 2px; }
 .tagcard.compact { cursor: pointer; padding: 4px; }
+.finbox { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 10px 0 0; border: 0; background: none; cursor: pointer; font-family: var(--f-mono); font-weight: 700; font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--brown); }
+.finbox i { width: 26px; height: 26px; border: 2px solid var(--ink); background: var(--card); display: grid; place-items: center; flex: none; }
+.finbox[aria-pressed="true"] { color: var(--good); }
+.finbox[aria-pressed="true"] i { background: var(--good); border-color: var(--good); }
+.finbox[aria-pressed="true"] i::after { content: ""; width: 7px; height: 13px; border: solid var(--bg); border-width: 0 3px 3px 0; transform: rotate(45deg) translate(-1px, -2px); }
+.tagcard.hard .finbox { color: var(--bg); }
+.tagcard.hard .finbox i { border-color: var(--bg); background: transparent; }
+.finbtn { align-self: end; }
+.finbtn[aria-pressed="true"] { background: var(--good); border-color: var(--good); color: var(--bg); }
 .tagcard.compact > .in { padding: 8px 12px; gap: 8px; }
 .tagcard.compact .head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .tagcard.compact .chev { color: var(--red); font-size: 16px; width: 14px; }
@@ -600,7 +609,8 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; user-select:
     const nice = d.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" });
     return diff < 0 ? `Overdue · was due ${nice}` : diff === 0 ? `Due today · ${nice}` : diff === 1 ? `Due tomorrow · ${nice}` : `Due ${nice}`;
   };
-  const isLate = (t) => t.status !== "closed" && t.due && t.due < today();
+  // A finished tag (the work is done, waiting for pickup) isn't late any more.
+  const isLate = (t) => t.status !== "closed" && !t.finished && t.due && t.due < today();
   const tagStatus = (t) => (t.status === "closed" ? ["done", "Closed"] : t.status === "register" ? ["reg", "At the register"] : ["open", "Open"]);
 
   // ---------- state ----------
@@ -872,7 +882,7 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; user-select:
     const gear = document.getElementById("gear-btn");
     if (gear) { gear.classList.toggle("on", UI.view === "settings"); if (UI.view === "settings") gear.setAttribute("aria-current", "page"); else gear.removeAttribute("aria-current"); }
     main.innerHTML = UI.view === "settings" ? settingsView() : UI.view === "customers" ? customersView() : UI.view === "tags" ? tagsView() : registerView();
-    const urgent = tags.filter((t) => t.status !== "closed" && t.due && t.due <= today()).length;
+    const urgent = tags.filter((t) => t.status !== "closed" && !t.finished && t.due && t.due <= today()).length;
     document.getElementById("tab-tags").innerHTML = "Tags" + (urgent ? ` <span class="qbadge" title="Due today or overdue">${urgent}</span>` : "");
     renderDialog();
   }
@@ -1024,14 +1034,19 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; user-select:
     const qd = phoneDigits(q);
     return q.toLowerCase().split(/\s+/).filter(Boolean).every((w) => hay.includes(w)) || (qd.length >= 3 && phoneDigits(c.phone).includes(qd));
   }
+  // Open tags still being worked on, and open tags marked Finished (done, waiting to be picked up and paid).
+  const workTags = () => tags.filter((t) => t.status !== "closed" && !t.finished);
+  const finishedTags = () => tags.filter((t) => t.status !== "closed" && t.finished);
   function tagsView() {
-    const open = tags.filter((t) => t.status !== "closed");
+    const open = workTags(), fin = finishedTags();
     const late = open.filter(isLate).length;
+    const any = open.length || fin.length;
     return `<div class="page"><div class="wrap">
-      <div style="display:flex;gap:12px;align-items:end;flex-wrap:wrap"><div><span class="label">Tags</span><h2>Open tags</h2></div>
+      <div style="display:flex;gap:12px 18px;align-items:end;flex-wrap:wrap"><div><span class="label">Tags</span><h2>Open tags</h2></div>
+        ${any ? `<button class="chip finbtn" data-act="tag-range" data-r="fin" aria-pressed="${UI.tagRange === "fin"}">✓ Finished <span class="n">${fin.length}</span></button>` : ""}
         <span class="muted" style="margin-left:auto">${open.length} open${late ? ` · <b style="color:var(--red)">${late} overdue</b>` : ""}</span></div>
-      ${open.length ? searchBox("tag-q", "tagq", UI.tagQ || "", "Find a tag by name, phone, tag number or alteration") : ""}
-      ${open.length ? `<div class="chips tagrange" id="tagrange">${rangeChipsHtml(open)}</div>` : ""}
+      ${any ? searchBox("tag-q", "tagq", UI.tagQ || "", "Find a tag by name, phone, tag number or alteration") : ""}
+      ${any ? `<div class="chips tagrange" id="tagrange">${rangeChipsHtml(open)}</div>` : ""}
       <div class="board" id="board">${boardHtml()}</div></div></div>`;
   }
   // Show only the tags due in one stretch: overdue, today, tomorrow, the next 7 days, the week after, or the week after that.
@@ -1046,18 +1061,23 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; user-select:
   ];
   const rangeChipsHtml = (open) => TAG_RANGES.map(([k, l, test]) => `<button class="chip" data-act="tag-range" data-r="${k}" aria-pressed="${(UI.tagRange || "all") === k}">${l} <span class="n">${open.filter(test).length}</span></button>`).join("");
   function boardHtml() {
-    const open = tags.filter((t) => t.status !== "closed");
-    if (!open.length) return `<div class="frame"><div class="in">
+    const isFin = UI.tagRange === "fin";
+    const open = isFin ? finishedTags() : workTags();
+    if (isFin && !open.length) return `<div class="empty">No finished tags. Tick <b>Finished</b> on a tag when the work is done, and it waits here until it's picked up.</div>`;
+    if (!open.length && !finishedTags().length) return `<div class="frame"><div class="in">
         <svg class="glyph" viewBox="0 0 72 72" aria-hidden="true"><rect x="22" y="8" width="28" height="56" fill="none" stroke="var(--red)" stroke-width="2"/><circle cx="36" cy="18" r="4" fill="none" stroke="var(--red)" stroke-width="2"/><path d="M28 32h16M28 40h16M28 48h10" stroke="var(--gold)" stroke-width="2"/></svg>
         <h3 style="font-size:24px">No open tags</h3>
         <p class="muted" style="margin:0;max-width:46ch">Open a tag from a customer on the Customers tab. Open tags show here, soonest due first.</p></div></div>`;
     const q = String(UI.tagQ || "").trim();
-    const range = TAG_RANGES.find(([k]) => k === (UI.tagRange || "all")) || TAG_RANGES[0];
+    if (!open.length) return `<div class="empty">Every open tag is finished. They're under <b>Finished</b>.</div>`;
+    const range = isFin ? ["fin", "Finished", () => true] : TAG_RANGES.find(([k]) => k === (UI.tagRange || "all")) || TAG_RANGES[0];
     const shown = open.filter((t) => tagMatches(t, q) && range[2](t));
-    if (!shown.length) return `<div class="empty">${q ? `No open tags match “${esc(q)}”${range[0] !== "all" ? ` in ${esc(range[1])}` : ""}.` : `No tags ${{ late: "are overdue", d0: "are due today", d1: "are due tomorrow" }[range[0]] || `due in ${esc(range[1].toLowerCase())}`}.`}</div>`;
+    if (!shown.length) return `<div class="empty">${q ? `No open tags match “${esc(q)}”${range[0] !== "all" ? ` in ${esc(range[1])}` : ""}.` : `No tags ${{ late: "are overdue", d0: "are due today", d1: "are due tomorrow", fin: "are finished" }[range[0]] || `due in ${esc(range[1].toLowerCase())}`}.`}</div>`;
     const key = (t) => t.due || "9999-99-99";
     const sorted = shown.sort((a, b) => key(a) < key(b) ? -1 : key(a) > key(b) ? 1 : (a.no || 0) - (b.no || 0));
     const t0 = today(), t1 = dayPlus(1), t7 = dayPlus(7);
+    if (isFin) return `<div class="grp"><span class="label">Finished · waiting for pickup <span class="n">${sorted.length}</span></span>
+        <div class="tagcards">${sorted.map((t) => tagCardHtml(t, true, true)).join("")}</div></div>`;
     const groups = [
       ["late", "Overdue", (t) => t.due && t.due < t0],
       ["", "Due today", (t) => t.due === t0],
@@ -1148,7 +1168,7 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; user-select:
       const open = !!(UI.tagOpen && UI.tagOpen[t.id]);
       return `<div class="tagcard compact ${isLate(t) ? "late" : ""} ${hard ? "hard" : ""} ${open ? "open" : ""}" data-act="tag-expand" data-id="${esc(t.id)}" role="button" tabindex="0" aria-expanded="${open}"><div class="in">
         ${hard ? `<div class="hardbar"><span>⚑ Hard date</span><b>${esc(new Date(t.due + "T12:00").toLocaleDateString([], { weekday: "long", month: "long", day: "numeric" }))}</b><span>Can't be missed</span></div>` : ""}
-        <div class="head"><span class="chev" aria-hidden="true">${open ? "▾" : "▸"}</span><span class="whom">${esc(custName(c))}</span>
+        <div class="head">${t.status === "open" ? `<button class="finbox" data-act="tag-finish" data-id="${esc(t.id)}" aria-pressed="${!!t.finished}" title="${t.finished ? "Finished. Tap to move it back to the open tags" : "Mark the work as finished"}"><i></i><span>Finished</span></button>` : ""}<span class="chev" aria-hidden="true">${open ? "▾" : "▸"}</span><span class="whom">${esc(custName(c))}</span>
           <span class="money">${price}</span><span class="acts">${buttons}</span></div>
         ${open ? `<div class="more">
           <div class="top"><b>Tag ${tagNo(t)}</b><span class="pill ${cls}">${label}</span>
@@ -1166,7 +1186,7 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; user-select:
         <div class="top"><b>Tag ${tagNo(t)}</b><span class="pill ${cls}">${label}</span>
           ${t.status !== "closed" ? `<span class="due-tag ${isLate(t) ? "late" : ""}">${esc(dueText(t))}${t.rush ? " · RUSH" : ""}</span>` : ""}
           <span class="muted small">Opened ${fmt(t.opened)}${t.status === "closed" && t.closedAt ? ` · paid ${fmt(t.closedAt)}` : ""}</span>
-          ${t.paid && t.status !== "closed" ? `<span class="pill done">Paid</span>` : ""}<span class="money" style="margin-left:auto;font-weight:700">${t.status === "closed" ? m(t.total || 0) : m(tagTotal(t).sum) + (tagTotal(t).unset.length ? "+" : "")}</span></div>
+          ${t.paid && t.status !== "closed" ? `<span class="pill done">Paid</span>` : ""}${t.finished && t.status !== "closed" ? `<span class="pill done">Finished</span>` : ""}<span class="money" style="margin-left:auto;font-weight:700">${t.status === "closed" ? m(t.total || 0) : m(tagTotal(t).sum) + (tagTotal(t).unset.length ? "+" : "")}</span></div>
         <div class="items">${lines.length ? lines.map((l) => esc(`${l.qty > 1 ? l.qty + " × " : ""}${l.name}${l.measure ? " " + l.measure : ""}`)).join(" · ") : '<span class="muted">Nothing ticked yet</span>'}</div>
         ${t.notes ? `<div class="small muted" style="white-space:pre-wrap">${esc(t.notes)}</div>` : ""}
         <div class="row">${t.status === "closed"
@@ -1693,7 +1713,14 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; user-select:
       const input = document.getElementById(el.dataset.for); if (!input) return;
       input.value = ""; input.dispatchEvent(new Event("input", { bubbles: true })); input.focus();
     },
-    "tag-range": (el) => { UI.tagRange = el.dataset.r; const w = document.getElementById("board"); if (w) w.innerHTML = boardHtml(); document.querySelectorAll('#tagrange [data-act="tag-range"]').forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.r === UI.tagRange))); },
+    "tag-range": (el) => { UI.tagRange = el.dataset.r; const w = document.getElementById("board"); if (w) w.innerHTML = boardHtml(); document.querySelectorAll('[data-act="tag-range"]').forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.r === UI.tagRange))); },
+    "tag-finish": async (el) => {
+      const t = tags.find((x) => x.id === el.dataset.id); if (!t || t.status === "closed") return;
+      if (t.finished) delete t.finished; else t.finished = new Date().toISOString();
+      await saveDoc("tags", t);
+      render();
+      toast(t.finished ? `Tag ${tagNo(t)} is finished. It's under Finished until it's picked up.` : `Tag ${tagNo(t)} is back with the open tags.`);
+    },
     "tag-expand": (el) => { UI.tagOpen = UI.tagOpen || {}; UI.tagOpen[el.dataset.id] = !UI.tagOpen[el.dataset.id]; const w = document.getElementById("board"); if (w) w.innerHTML = boardHtml(); },
     "tag-who": (el) => { UI.custSel = el.dataset.id; UI.view = "customers"; render(); },
     "due-quick": (el) => { const t = UI.dialog.tag; t.due = dayPlus(Number(el.dataset.n)); t.noDue = false; refreshDue(); },
