@@ -874,6 +874,8 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; user-select:
     } catch {}
   }
 
+  const KEEP_SCROLL = [".page", ".shelf", ".lines", ".who-list", ".people .detail"];
+  const lastView = { view: null, cust: null };
   function render() {
     for (const v of ["register", "tags", "customers"]) {
       const b = document.getElementById("tab-" + v);
@@ -881,7 +883,26 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; user-select:
     }
     const gear = document.getElementById("gear-btn");
     if (gear) { gear.classList.toggle("on", UI.view === "settings"); if (UI.view === "settings") gear.setAttribute("aria-current", "page"); else gear.removeAttribute("aria-current"); }
+    // Redrawing the same screen (after a sync, or ticking a tag) keeps the place: each scrolling
+    // area stays where it was, and so does the box being typed in. Switching screens starts at the top.
+    const same = UI.view === lastView.view, place = {};
+    if (same) {
+      for (const sel of KEEP_SCROLL) { const e = main.querySelector(sel); if (e) place[sel] = e.scrollTop; }
+      place.win = window.scrollY;
+      const a = document.activeElement;
+      if (a && a.id && main.contains(a)) place.focus = { id: a.id, start: a.selectionStart, end: a.selectionEnd };
+    }
     main.innerHTML = UI.view === "settings" ? settingsView() : UI.view === "customers" ? customersView() : UI.view === "tags" ? tagsView() : registerView();
+    if (same) {
+      for (const sel of KEEP_SCROLL) {
+        if (sel === ".people .detail" && UI.custSel !== lastView.cust) continue;   // another customer: start at the top
+        const e = main.querySelector(sel); if (e && place[sel] != null) e.scrollTop = place[sel];
+      }
+      if (place.win) window.scrollTo(0, place.win);
+      const f = place.focus && document.getElementById(place.focus.id);
+      if (f) { f.focus({ preventScroll: true }); try { if (place.focus.start != null) f.setSelectionRange(place.focus.start, place.focus.end); } catch {} }
+    }
+    lastView.view = UI.view; lastView.cust = UI.custSel;
     const urgent = tags.filter((t) => t.status !== "closed" && !t.finished && t.due && t.due <= today()).length;
     document.getElementById("tab-tags").innerHTML = "Tags" + (urgent ? ` <span class="qbadge" title="Due today or overdue">${urgent}</span>` : "");
     renderDialog();
