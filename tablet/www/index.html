@@ -365,6 +365,9 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; user-select:
 .tagrange { display: flex; flex-wrap: wrap; gap: 8px; }
 .tagrange .chip[aria-pressed="true"] { background: var(--red); color: var(--bg); }
 .tagrange .chip .n { opacity: .75; margin-left: 4px; }
+.tagrange { gap: 6px; }
+.tagrange .chip { padding: 8px 10px; font-size: 12.5px; letter-spacing: 0.06em; }
+.tagrange .chip .n { margin-left: 2px; }
 .tagcard.compact { cursor: pointer; padding: 4px; }
 .tagcard.compact > .in { padding: 8px 12px; gap: 8px; }
 .tagcard.compact .head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
@@ -1031,10 +1034,12 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; user-select:
       ${open.length ? `<div class="chips tagrange" id="tagrange">${rangeChipsHtml(open)}</div>` : ""}
       <div class="board" id="board">${boardHtml()}</div></div></div>`;
   }
-  // Show only the tags due in one stretch: overdue, the next 7 days, the week after, or the week after that.
+  // Show only the tags due in one stretch: overdue, today, tomorrow, the next 7 days, the week after, or the week after that.
   const TAG_RANGES = [
     ["all", "All", () => true],
     ["late", "Overdue", (t) => t.due && t.due < today()],
+    ["d0", "Due today", (t) => t.due === today()],
+    ["d1", "Due tomorrow", (t) => t.due === dayPlus(1)],
     ["w1", "Next week", (t) => t.due && t.due >= today() && t.due <= dayPlus(7)],
     ["w2", "2 weeks", (t) => t.due && t.due > dayPlus(7) && t.due <= dayPlus(14)],
     ["w3", "3 weeks", (t) => t.due && t.due > dayPlus(14) && t.due <= dayPlus(21)],
@@ -1049,7 +1054,7 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; user-select:
     const q = String(UI.tagQ || "").trim();
     const range = TAG_RANGES.find(([k]) => k === (UI.tagRange || "all")) || TAG_RANGES[0];
     const shown = open.filter((t) => tagMatches(t, q) && range[2](t));
-    if (!shown.length) return `<div class="empty">${q ? `No open tags match “${esc(q)}”${range[0] !== "all" ? ` in ${esc(range[1])}` : ""}.` : `No tags ${range[0] === "late" ? "are overdue" : `due in ${esc(range[1].toLowerCase())}`}.`}</div>`;
+    if (!shown.length) return `<div class="empty">${q ? `No open tags match “${esc(q)}”${range[0] !== "all" ? ` in ${esc(range[1])}` : ""}.` : `No tags ${{ late: "are overdue", d0: "are due today", d1: "are due tomorrow" }[range[0]] || `due in ${esc(range[1].toLowerCase())}`}.`}</div>`;
     const key = (t) => t.due || "9999-99-99";
     const sorted = shown.sort((a, b) => key(a) < key(b) ? -1 : key(a) > key(b) ? 1 : (a.no || 0) - (b.no || 0));
     const t0 = today(), t1 = dayPlus(1), t7 = dayPlus(7);
