@@ -12,3 +12,6 @@ tablet/www/customer-sync.js
 tablet/www/tag-sync.js
 tablet/www/card-pay.js
 tablet/www/capacitor.js
+studio/dist/
+studio/app/fonts/
+studio/app/jspdf.umd.min.js

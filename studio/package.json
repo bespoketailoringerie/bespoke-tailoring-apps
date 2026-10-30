@@ -1,0 +1,51 @@
+{
+  "name": "bespoke-post-studio",
+  "productName": "Bespoke Post Studio",
+  "version": "1.0.0",
+  "description": "Design social media posts and printed flyers for Bespoke Tailoring",
+  "main": "main.js",
+  "author": "Bespoke Tailoring",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win nsis --publish never"
+  },
+  "devDependencies": {
+    "electron": "^33.2.0",
+    "electron-builder": "^25.1.8",
+    "jspdf": "^2.5.2",
+    "@fontsource/gloock": "^5.1.0",
+    "@fontsource/lora": "^5.1.0",
+    "@fontsource/courier-prime": "^5.1.0",
+    "@fontsource/cormorant-garamond": "^5.1.0",
+    "@fontsource/pinyon-script": "^5.1.0",
+    "@fontsource/oswald": "^5.1.0"
+  },
+  "build": {
+    "appId": "com.bespoketailoring.poststudio",
+    "productName": "Bespoke Post Studio",
+    "files": [
+      "main.js",
+      "preload.js",
+      "app/**/*",
+      "package.json"
+    ],
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "icon": "build/icon.png",
+      "artifactName": "Bespoke-Post-Studio-Setup-${version}.${ext}"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "createDesktopShortcut": true,
+      "shortcutName": "Bespoke Post Studio"
+    }
+  }
+}

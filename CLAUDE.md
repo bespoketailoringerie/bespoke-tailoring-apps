@@ -39,6 +39,25 @@ version must use that same key or Android won't install it over the old one.
 Check the run with `gh run list` / `gh run watch` and the release with
 `gh api repos/bespoketailoringerie/bespoke-tailoring-apps/releases/latest`.
 
+## Bespoke Post Studio (`studio/`)
+
+The shop's design app for social media posts and printed flyers (Letter, half-sheet), Windows only
+for now (Mac planned). Electron; the whole editor is `studio/app/index.html` (logo embedded as base64,
+so edit with targeted replacements). It started as a claude.ai artifact; this copy loads its fonts and
+jsPDF locally (`scripts/copy-studio-assets.js` copies them in at build time; both are gitignored).
+`studio/main.js` + `studio/preload.js` give the page `window.studio` (`saveFile` through a Save dialog,
+`version`). Photos are kept in the app's IndexedDB (`bespoke-studio`, srcs `idb:<id>`), designs in
+localStorage (`bespoke-designs-v1`), all under `%APPDATA%\Bespoke Post Studio`. No Claude caption
+writing in the desktop app (that needs the artifact).
+
+- **Releases are separate from the registers:** raise `studio/VERSION` on `main`; the **Post Studio
+  build and release** workflow publishes tag `studio-vX.Y.Z` with `make_latest: false`. Never mark a
+  Post Studio release as latest: the POS updater, the tablet notice and the website's Downloads tab
+  read `releases/latest` for the registers.
+- The app checks the releases list for a newer `studio-v` tag when it opens and every 6 hours, and
+  offers to open the installer download. It doesn't update itself.
+- The website's Staff Area > Downloads shows the newest `studio-v` release alongside the registers.
+
 ## Where data lives
 
 - Shop computer: `%APPDATA%\Bespoke Register\register-data.json` (written safely via a temp file, with

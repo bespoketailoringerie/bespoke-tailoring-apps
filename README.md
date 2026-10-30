@@ -10,6 +10,12 @@ Downloads and source for Bespoke Tailoring's two registers:
 
 Neither download contains a register key. Each device is given its key once during setup.
 
+It also holds **Bespoke Post Studio** (`studio/`), the design app for social media posts and printed
+flyers (Electron, Windows for now). Install it with the `Bespoke-Post-Studio-Setup-x.y.z.exe` from the
+newest `studio-v…` release; the app shows a notice when a new version is out. To publish one, raise the
+number in `studio/VERSION` on `main`. Post Studio releases are never marked "latest", so they don't
+affect the registers' updates.
+
 ## Publishing a new version
 
 Change the number in the `VERSION` file on `main` (for example `1.0.0` → `1.0.1`). That starts the

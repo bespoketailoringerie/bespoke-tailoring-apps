@@ -1,0 +1,87 @@
+# Builds Bespoke Post Studio (the design app) for Windows and publishes it as its own release,
+# tagged studio-v1.2.3. To publish a new version, raise the number in studio/VERSION on main.
+# Post Studio releases are never marked "latest", so the registers' update checks (which read the
+# latest release) only ever see register versions. Pushing to test-build builds without publishing.
+name: Post Studio build and release
+on:
+  push:
+    branches: [main, test-build]
+    paths:
+      - "studio/**"
+      - "scripts/copy-studio-assets.js"
+      - ".github/workflows/studio-release.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  version:
+    name: Read version
+    runs-on: ubuntu-latest
+    outputs:
+      v: ${{ steps.v.outputs.v }}
+      go: ${{ steps.v.outputs.go }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: v
+        run: |
+          V="$(tr -d ' \r\n' < studio/VERSION)"
+          [[ "$V" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "studio/VERSION must look like 1.2.3, got '$V'"; exit 1; }
+          echo "v=$V" >> "$GITHUB_OUTPUT"
+          if [ "$GITHUB_REF_NAME" = "main" ] && git ls-remote --exit-code --tags origin "refs/tags/studio-v$V" >/dev/null; then
+            echo "Post Studio $V is already published; nothing to build. Raise the number in studio/VERSION to publish."
+            echo "go=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "go=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  windows:
+    name: Windows installer
+    needs: version
+    if: needs.version.outputs.go == 'true'
+    runs-on: windows-latest
+    env:
+      VERSION: ${{ needs.version.outputs.v }}
+    defaults:
+      run:
+        working-directory: studio
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Set version
+        run: npm version "$VERSION" --no-git-tag-version --allow-same-version
+      - run: npm install --no-audit --no-fund
+      - name: Bundle the fonts and the PDF maker
+        run: node ../scripts/copy-studio-assets.js app
+      - run: npm run dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: studio
+          path: studio/dist/*.exe
+
+  release:
+    name: Publish release
+    needs: [version, windows]
+    if: github.ref_name == 'main'
+    runs-on: ubuntu-latest
+    env:
+      VERSION: ${{ needs.version.outputs.v }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: out
+          merge-multiple: true
+      - run: ls -la out
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: studio-v${{ env.VERSION }}
+          target_commitish: ${{ github.sha }}
+          name: Bespoke Post Studio ${{ env.VERSION }}
+          make_latest: false
+          body: |
+            **Windows:** Bespoke-Post-Studio-Setup .exe — run it once. The app tells you when a new version is out.
+          files: out/*
