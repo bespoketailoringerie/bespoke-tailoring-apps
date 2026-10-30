@@ -49,6 +49,8 @@ jsPDF locally (`scripts/copy-studio-assets.js` copies them in at build time; bot
 `version`). Photos are kept in the app's IndexedDB (`bespoke-studio`, srcs `idb:<id>`), designs in
 localStorage (`bespoke-designs-v1`), all under `%APPDATA%\Bespoke Post Studio`. No Claude caption
 writing in the desktop app (that needs the artifact).
+The Titania display font (Regular, Outline, Shadow; the shop's title font) is embedded in the page as
+base64 WOFF `@font-face` rules, since it isn't on npm.
 
 - **Releases are separate from the registers:** raise `studio/VERSION` on `main`; the **Post Studio
   build and release** workflow publishes tag `studio-vX.Y.Z` with `make_latest: false`. Never mark a
