@@ -99,6 +99,19 @@ the **Customer list** status button at the top of the screen (both apps work the
 - Merchant360's live card-present processing is waiting on their certification; until then a live key
   answers 503 and the apps explain it and fall back to keying it in.
 
+## Cash drawer
+
+- The shop's drawer is a Volcora on a USB trigger box (RJ11 drawer cable into the box, box into the
+  PC by USB), separate from the receipt printer. The box is a Prolific PL2303 USB-to-serial port; it
+  needs Volcora's "Driver for USB Cash Drawer" (PL23XX Prolific installer) and then shows in Device
+  Manager as "Prolific USB-to-Serial Comm Port (COMx)".
+- `main.js` opens it through Windows PowerShell (`System.IO.Ports.SerialPort`, 9600 8N1, DTR/RTS on,
+  writes a few 0x55 bytes): `drawer:ports` lists COM ports with their Windows names, `drawer:open`
+  pops the drawer. No native modules.
+- Settings > Cash drawer: pick the port (a single Prolific port is chosen automatically), Open drawer
+  to test, and "open automatically" (default on) for cash or check sales and cash refunds. Staff >
+  Cash drawer has an Open drawer button for counting. Settings keys `drawerPort`, `drawerAuto`.
+
 ## Testing
 
 - Opening `pos/app/index.html` in a browser runs a **preview** with sample items, sales, staff and

@@ -648,6 +648,9 @@ window.DEFAULT_PRICE_LIST = {"name":"Dress","updated":"Aug 13, 2026, 5:29 PM","c
         nextSku: 1,
         labelSize: "roll",
         weekStart: 0,
+        // Cash drawer on a USB trigger: its COM port, and whether cash and check sales open it.
+        drawerPort: "",
+        drawerAuto: true,
         // Markup on the made-to-measure price list: percent per garment, a fallback, and rounding.
         markup: { byType: {}, fallback: null, round: "5" },
         // Fixed-price cards at the start of the Register's Custom section.
@@ -1672,6 +1675,42 @@ window.DEFAULT_PRICE_LIST = {"name":"Dress","updated":"Aug 13, 2026, 5:29 PM","c
   }
 
   // ---------- Settings ----------
+  // ---------- cash drawer (USB trigger on a COM port) ----------
+  function drawerSettingsHtml() {
+    const s = S.settings; const list = UI.drawerPorts || [];
+    if (!UI.drawerPorts && !UI.drawerLooked) { UI.drawerLooked = true; setTimeout(findDrawerPorts, 0); }
+    const known = list.some((x) => x.port === s.drawerPort);
+    const opts = [`<option value="">No cash drawer</option>`, ...list.map((x) => `<option value="${esc(x.port)}" ${x.port === s.drawerPort ? "selected" : ""}>${esc(x.port)}${x.name !== x.port ? " · " + esc(x.name.replace(/\s*\(COM\d+\)/i, "")) : ""}</option>`),
+      s.drawerPort && !known ? `<option value="${esc(s.drawerPort)}" selected>${esc(s.drawerPort)}${UI.drawerPorts ? " (not plugged in)" : ""}</option>` : ""];
+    return `<p class="small muted" style="margin:0">A drawer with a USB trigger shows up as a port, usually named "Prolific USB-to-Serial Comm Port (COM…)". Install the drawer's driver first if it isn't in the list.</p>
+      <div class="row"><label class="f" style="flex:1;min-width:240px"><span>Drawer port</span><select id="drw-port" data-in="drawer-port">${opts.join("")}</select></label>
+        <button class="btn ghost" data-act="drw-ports" style="align-self:end">${UI.drawerPorts ? "Look again" : "Find ports"}</button><button class="btn" data-act="drw-test" style="align-self:end" ${s.drawerPort ? "" : "disabled"}>Open drawer</button></div>
+      ${UI.drawerPortsNote ? `<p class="small" style="margin:0">${esc(UI.drawerPortsNote)}</p>` : ""}
+      <label class="row small"><input type="checkbox" id="drw-auto" data-in="drawer-auto" ${s.drawerAuto !== false ? "checked" : ""}> Open it automatically after a cash or check sale and for a cash refund</label>`;
+  }
+  // Opens the drawer if one is set up. quiet: no message when it works.
+  async function popDrawer(quiet) {
+    const port = S.settings.drawerPort;
+    if (!port) return false;
+    if (PREVIEW || !pos.openDrawer) { if (!quiet) toast("In the installed app, this opens the cash drawer."); return false; }
+    const r = await pos.openDrawer(port).catch(() => ({ ok: false, error: "The drawer didn't open. Check its USB plug and the port in Settings." }));
+    if (!r.ok) toast(r.error, true); else if (!quiet) toast("Drawer opened.");
+    return r.ok;
+  }
+  const drawerAuto = () => S.settings.drawerPort && S.settings.drawerAuto !== false;
+  async function findDrawerPorts() {
+    if (PREVIEW || !pos.drawerPorts) { UI.drawerPorts = []; UI.drawerPortsNote = "In the installed app, this lists the computer's ports."; return render(); }
+    UI.drawerPortsNote = "Looking…"; render();
+    const r = await pos.drawerPorts().catch(() => ({ ok: false, ports: [], error: "Couldn't list the computer's ports." }));
+    UI.drawerPorts = r.ports || [];
+    UI.drawerPortsNote = !r.ok ? r.error : UI.drawerPorts.length ? "" : "No ports found. Plug in the drawer's USB cable and install its driver, then look again.";
+    if (r.ok && !S.settings.drawerPort) {
+      const pl = UI.drawerPorts.filter((x) => /prolific|usb.*serial|serial.*usb/i.test(x.name));
+      if (pl.length === 1) { S.settings.drawerPort = pl[0].port; persist(); UI.drawerPortsNote = `Found the drawer on ${pl[0].port}. Press Open drawer to test it.`; }
+    }
+    render();
+  }
+
   function settingsView() {
     const s = S.settings;
     const fld = (k, label, type = "text", extra = "") => `<label class="f"><span>${label}</span><input type="${type}" id="set-${k}" value="${esc(s[k])}" data-in="set" data-k="${k}" ${extra}></label>`;
@@ -1708,6 +1747,7 @@ window.DEFAULT_PRICE_LIST = {"name":"Dress","updated":"Aug 13, 2026, 5:29 PM","c
           <section class="panel"><div class="in"><h3 class="banner">Emailing receipts</h3><p class="small muted" style="margin:0">Receipts go out from the shop's Gmail. Gmail needs an <b>app password</b> for this, not your normal password: in your Google Account, turn on 2-Step Verification, then search for "App passwords" and make one called Register.</p>
             ${fld("smtpUser", "Gmail address", "email")}${fld("smtpPass", "App password", "password", 'autocomplete="off"')}
             <div class="row"><input type="email" id="test-to" style="max-width:260px" placeholder="Send a test to…" value="${esc(UI.testTo || s.smtpUser)}" data-in="test-to"><button class="btn" data-act="test-email">Send test receipt</button></div></div></section>
+          <section class="panel"><div class="in"><h3 class="banner">Cash drawer</h3>${drawerSettingsHtml()}</div></section>
           <section class="panel"><div class="in"><h3 class="banner">Website</h3>
             <p class="small muted" style="margin:0">The connection to the website's customer list is the <b>Customer list</b> button at the top of the screen. The Stock screen can bring in the items listed on the website.</p></div></section>
           <section class="panel"><div class="in"><h3 class="banner">Backups</h3><p class="small muted" style="margin:0">Everything is kept on this computer and copied to the backup folder once a day (the last 60 days are kept). Pick a OneDrive or USB-drive folder so a broken computer can't lose your sales history.</p>
@@ -1867,7 +1907,7 @@ window.DEFAULT_PRICE_LIST = {"name":"Dress","updated":"Aug 13, 2026, 5:29 PM","c
             <div class="pay"><b>Should be in the drawer</b><b>${m(expected)}</b></div><div class="pay" id="dn-diff">${diffHtml(diff)}</div></div>` : `<p class="small muted" style="margin:0">There's no opening count for today, so the app can't say what the drawer should hold.</p>`) : ""}
         <div class="grid2"><label class="f"><span>Counted by</span><select id="dn-by" data-in="drawer-by"><option value="">—</option>${activeStaff().map((st) => `<option value="${st.id}" ${UI.drawerBy === st.id ? "selected" : ""}>${esc(st.name)}</option>`).join("")}</select></label>
           <label class="f"><span>Note</span><input type="text" id="dn-note" value="${esc(UI.drawerNote || "")}" data-in="drawer-note" placeholder="optional"></label></div>
-        <div><button class="btn primary" data-act="drawer-save" ${total || kind === "close" ? "" : "disabled"}>Save ${kind === "open" ? "opening" : "closing"} count</button></div></div></div>
+        <div class="row"><button class="btn primary" data-act="drawer-save" ${total || kind === "close" ? "" : "disabled"}>Save ${kind === "open" ? "opening" : "closing"} count</button>${S.settings.drawerPort ? `<button class="btn" data-act="drw-open">Open drawer</button>` : `<span class="small muted">Set up the cash drawer in Settings to open it from here.</span>`}</div></div></div>
       <div class="panel"><div class="in"><h3 class="banner">Recent counts</h3>${hist.length ? `<div class="tablewrap"><table><thead><tr><th>Day</th><th>Count</th><th>By</th><th class="r">Counted</th><th class="r">Over / short</th></tr></thead><tbody>${hist.map((x) => `<tr><td>${new Date(x.at).toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" })} <span class="small muted">${tShort(x.at)}</span></td><td>${x.kind === "open" ? "Opening" : "Closing"}</td><td>${esc(x.by ? (staffById(x.by) || {}).name || "" : "")}</td><td class="r num">${m(x.counted)}</td>
           <td class="r num">${x.expected == null ? "—" : `<span class="pill ${x.counted - x.expected === 0 ? "good" : Math.abs(x.counted - x.expected) <= 100 ? "warn" : "bad"}">${x.counted - x.expected === 0 ? "Even" : (x.counted > x.expected ? "Over " : "Short ") + m(Math.abs(x.counted - x.expected))}</span>`}</td></tr>`).join("")}</tbody></table></div>` : `<div class="empty">No counts yet. Count the drawer when you open.</div>`}</div></div></div>`;
   }
@@ -2539,6 +2579,7 @@ window.DEFAULT_PRICE_LIST = {"name":"Dress","updated":"Aug 13, 2026, 5:29 PM","c
       const rec = recordReturn(sale, lines, { type: "refund", method: d.method, note: [String(d.note || "").trim(), cardRef ? "Back to " + cardRef : ""].filter(Boolean).join(" · ") });
       UI.retPick = {}; UI.retRestock = {};
       await persist();
+      if (drawerAuto() && d.method === "Cash") popDrawer(true);
       UI.dialog = { type: "receipt", kind: "return", id: rec.id, fresh: true };
       render();
     },
@@ -2595,6 +2636,9 @@ window.DEFAULT_PRICE_LIST = {"name":"Dress","updated":"Aug 13, 2026, 5:29 PM","c
     "export-all": () => exportCsv(`sales-all-${today()}.csv`, S.sales),
     // settings
     "set-week": (el) => { S.settings.weekStart = Number(el.dataset.v); persist(); render(); },
+    "drw-ports": () => findDrawerPorts(),
+    "drw-test": () => popDrawer(false),
+    "drw-open": () => popDrawer(false),
     "set-paper": (el) => { S.settings.paper = el.dataset.v; persist(); render(); },
     "svc-add": () => { S.settings.services.push({ name: "", price: 0 }); persist(); render(); },
     "svc-del": (el) => { S.settings.services.splice(Number(el.dataset.i), 1); persist(); render(); },
@@ -2679,6 +2723,7 @@ window.DEFAULT_PRICE_LIST = {"name":"Dress","updated":"Aug 13, 2026, 5:29 PM","c
     if (sync && sale.customer && sale.total > 0) sync.sale(custOf(sale.customer), sale.no, sale.total, today());
     UI.cart = []; UI.cartDisc = null; UI.customer = null; UI.credit = null; UI.custQuery = "";
     await persist();
+    if (drawerAuto() && payments.some((p) => p.method === "Cash" || p.method === "Check" || p.method === "Refund · Cash")) popDrawer(true);
     UI.dialog = { type: "receipt", kind: "sale", id: sale.id, fresh: true };
     render();
   }
@@ -2777,6 +2822,8 @@ window.DEFAULT_PRICE_LIST = {"name":"Dress","updated":"Aug 13, 2026, 5:29 PM","c
     else if (kind === "note-text") UI.noteText = val;
     else if (kind === "note-by") UI.noteBy = val;
     else if (kind === "drawer-by") UI.drawerBy = val;
+    else if (kind === "drawer-auto") { S.settings.drawerAuto = el.checked; persist(); }
+    else if (kind === "drawer-port") { S.settings.drawerPort = val; persist(); render(); if (val) popDrawer(false); }
     else if (kind === "drawer-note") UI.drawerNote = val;
     else if (kind === "clerk") UI.clerkId = val;
     else if (kind === "denom") {

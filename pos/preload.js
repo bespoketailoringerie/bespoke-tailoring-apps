@@ -12,4 +12,6 @@ contextBridge.exposeInMainWorld("pos", {
   emailReceipt: (opts) => ipcRenderer.invoke("receipt:email", opts),
   fetchProducts: (base) => ipcRenderer.invoke("web:products", base),
   info: () => ipcRenderer.invoke("app:info"),
+  drawerPorts: () => ipcRenderer.invoke("drawer:ports"),
+  openDrawer: (port) => ipcRenderer.invoke("drawer:open", port),
 });

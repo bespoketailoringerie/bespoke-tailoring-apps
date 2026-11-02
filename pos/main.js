@@ -139,6 +139,51 @@ ipcMain.handle("web:products", async (_e, base) => {
 
 ipcMain.handle("app:info", () => ({ version: app.getVersion(), dataFile: dataFile(), installed: true }));
 
+// Cash drawer on a USB trigger (e.g. Volcora): Windows shows the trigger as a serial (COM) port, and
+// sending it a few bytes pops the drawer. Done through Windows PowerShell so no extra modules are needed.
+const { execFile } = require("node:child_process");
+function powershell(script, timeout = 10000) {
+  return new Promise((resolve) => {
+    if (process.platform !== "win32") return resolve({ ok: false, out: "", err: "Only on the shop's Windows computer." });
+    execFile("powershell.exe", ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", script],
+      { timeout, windowsHide: true }, (e, out, err) => resolve({ ok: !e, out: String(out || ""), err: String(err || (e && e.message) || "") }));
+  });
+}
+ipcMain.handle("drawer:ports", async () => {
+  const r = await powershell(
+    "$ErrorActionPreference='SilentlyContinue';" +
+    "$n=@(Get-CimInstance Win32_PnPEntity | Where-Object { $_.Name -match '\\(COM\\d+\\)' } | ForEach-Object { $_.Name });" +
+    "$p=@([System.IO.Ports.SerialPort]::GetPortNames());" +
+    "[pscustomobject]@{names=$n;ports=$p} | ConvertTo-Json -Compress");
+  if (!r.ok) return { ok: false, ports: [], error: r.err.includes("Windows") ? r.err : "Couldn't list the computer's ports." };
+  let j = {}; try { j = JSON.parse(r.out.trim() || "{}"); } catch {}
+  const arr = (v) => (Array.isArray(v) ? v : v ? [v] : []);
+  const ports = new Map();
+  for (const name of arr(j.names)) { const m = /\((COM\d+)\)/i.exec(name); if (m) ports.set(m[1].toUpperCase(), name); }
+  for (const p of arr(j.ports)) if (/^COM\d+$/i.test(p) && !ports.has(p.toUpperCase())) ports.set(p.toUpperCase(), p.toUpperCase());
+  return { ok: true, ports: [...ports].map(([port, name]) => ({ port, name })).sort((a, b) => Number(a.port.slice(3)) - Number(b.port.slice(3))) };
+});
+let drawerBusy = null;
+ipcMain.handle("drawer:open", async (_e, port) => {
+  const p = String(port || "").toUpperCase();
+  if (!/^COM\d{1,3}$/.test(p)) return { ok: false, error: "Choose the cash drawer's port in Settings first." };
+  if (drawerBusy) return drawerBusy;
+  drawerBusy = (async () => {
+    const r = await powershell(
+      "$ErrorActionPreference='Stop';" +
+      `$s=New-Object System.IO.Ports.SerialPort '${p}',9600,'None',8,'One';` +
+      "$s.WriteTimeout=2000;$s.DtrEnable=$true;$s.RtsEnable=$true;" +
+      "try{$s.Open();$b=[byte[]](0x55,0x55,0x55,0x55,0x55,0x55,0x55,0x55);$s.Write($b,0,$b.Length);Start-Sleep -Milliseconds 150}" +
+      "catch{[Console]::Error.Write($_.Exception.Message);exit 1}finally{if($s.IsOpen){$s.Close()}}");
+    if (r.ok) return { ok: true };
+    const msg = r.err;
+    if (/does not exist|not exist|cannot find/i.test(msg)) return { ok: false, error: `${p} isn't connected. Check the drawer's USB plug, then choose its port again in Settings.` };
+    if (/denied|in use/i.test(msg)) return { ok: false, error: `${p} is busy. Close any other program using the drawer (like its test tool), then try again.` };
+    return { ok: false, error: "The drawer didn't open. Check its USB plug and the port in Settings." };
+  })();
+  try { return await drawerBusy; } finally { drawerBusy = null; }
+});
+
 // Updates: new versions are published on GitHub (bespoketailoringerie/bespoke-tailoring-apps).
 // The app checks when it opens and every few hours, downloads a new version in the background,
 // then asks before restarting so a sale is never interrupted.
