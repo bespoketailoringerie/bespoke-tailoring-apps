@@ -109,7 +109,8 @@ the **Customer list** status button at the top of the screen (both apps work the
   writes a few 0x55 bytes): `drawer:ports` lists COM ports with their Windows names, `drawer:open`
   pops the drawer. No native modules.
 - Settings > Cash drawer: pick the port (a single Prolific port is chosen automatically), Open drawer
-  to test, and "open automatically" (default on) for cash or check sales and cash refunds. Staff >
+  to test, and "open automatically" (default on): when Take cash / Take check is pressed in the
+  payment window, and when a cash refund is recorded. Staff >
   Cash drawer has an Open drawer button for counting. Settings keys `drawerPort`, `drawerAuto`.
 
 ## Testing

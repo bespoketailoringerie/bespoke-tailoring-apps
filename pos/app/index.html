@@ -2502,6 +2502,7 @@ window.DEFAULT_PRICE_LIST = {"name":"Dress","updated":"Aug 13, 2026, 5:29 PM","c
       if (d.method === "Cash") { p.tendered = amt; d.change = (d.change || 0) + (amt - applied); }
       if (d.ref) p.ref = String(d.ref).trim().slice(0, 40);
       d.payments.push(p);
+      if ((d.method === "Cash" || d.method === "Check") && drawerAuto()) popDrawer(true);
       const after = L.paymentState(total, d.payments);
       d.amount = (after.due / 100).toFixed(2); d.ref = ""; if (after.due > 0 && d.method === "Cash") d.amount = "";
       renderDialog();
@@ -2723,7 +2724,7 @@ window.DEFAULT_PRICE_LIST = {"name":"Dress","updated":"Aug 13, 2026, 5:29 PM","c
     if (sync && sale.customer && sale.total > 0) sync.sale(custOf(sale.customer), sale.no, sale.total, today());
     UI.cart = []; UI.cartDisc = null; UI.customer = null; UI.credit = null; UI.custQuery = "";
     await persist();
-    if (drawerAuto() && payments.some((p) => p.method === "Cash" || p.method === "Check" || p.method === "Refund · Cash")) popDrawer(true);
+    if (drawerAuto() && payments.some((p) => p.method === "Refund · Cash")) popDrawer(true);
     UI.dialog = { type: "receipt", kind: "sale", id: sale.id, fresh: true };
     render();
   }
